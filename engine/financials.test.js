@@ -23,9 +23,9 @@ describe("calculateNIM", () => {
   });
 
   it("era 1 starting state is intentionally below warn threshold", () => {
-    // deposits = loans = 80000 at default rates — NIM ~1.125%, warn threshold is 1.2%
-    // Low NIM is the teaching mechanic: grow loans to improve it
-    expect(calculateNIM(80000, 80000, 6.5, 2.0)).toBeCloseTo(1.125, 2);
+    // Math produces 1.125, but toFixed(2) rounds up to 1.13 in IEEE 754
+    // Still below the 1.2% warn threshold — intentional teaching mechanic
+    expect(calculateNIM(80000, 80000, 6.5, 2.0)).toBe(1.13);
   });
 
   it("returns negative NIM when deposit costs exceed interest income", () => {
@@ -85,6 +85,11 @@ describe("isLiquidityBreached", () => {
   it("returns false when cash is above the floor", () => {
     expect(isLiquidityBreached(5000, 80000)).toBe(false);
   });
+
+  it("returns false when cash is exactly at the floor (strict less-than)", () => {
+    // floor = 80000 * 0.02 = 1600; 1600 < 1600 is false
+    expect(isLiquidityBreached(1600, 80000)).toBe(false);
+  });
 });
 
 describe("getConcentrationRisk", () => {
@@ -107,6 +112,11 @@ describe("getConcentrationRisk", () => {
   it("returns critical at or above catastrophic threshold", () => {
     // 400000 / 1000000 = 40%
     expect(getConcentrationRisk(400000, 1000000, config)).toBe("critical");
+  });
+
+  it("returns critical at exactly the catastrophicThreshold (>=)", () => {
+    // 350000 / 1000000 = 0.35 === catastrophicThreshold
+    expect(getConcentrationRisk(350000, 1000000, config)).toBe("critical");
   });
 });
 
@@ -137,6 +147,22 @@ describe("getKPIStatus", () => {
 
   it("NPL: healthy below 5% (inverted)", () => {
     expect(getKPIStatus("npl", 0.03)).toBe("healthy");
+  });
+
+  it("NIM boundary: exactly 0.5 is warn, not danger (strict less-than)", () => {
+    expect(getKPIStatus("nim", 0.5)).toBe("warn");
+  });
+
+  it("NIM boundary: exactly 1.2 is healthy, not warn (strict less-than)", () => {
+    expect(getKPIStatus("nim", 1.2)).toBe("healthy");
+  });
+
+  it("NPL boundary: exactly 0.09 is warn, not danger (strict greater-than)", () => {
+    expect(getKPIStatus("npl", 0.09)).toBe("warn");
+  });
+
+  it("NPL boundary: exactly 0.05 is healthy, not warn (strict greater-than)", () => {
+    expect(getKPIStatus("npl", 0.05)).toBe("healthy");
   });
 });
 
