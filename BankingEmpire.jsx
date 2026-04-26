@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { DEFAULT_FINANCIALS, DEFAULT_POLICY, POLICY_IMPACTS, CUSTOMER_BEHAVIOUR } from "./config/economy.js";
-import { DEFAULT_STAFF, DEFAULT_FACILITIES, createStaffMember }                   from "./config/characters.js";
+import { DEFAULT_STAFF, DEFAULT_FACILITIES }                                        from "./config/characters.js";
 import { EVT_DISPLAY }                                                             from "./config/events.js";
 import { LOSS_CONDITIONS, QUARTER_MILESTONES }                                     from "./config/progression.js";
 import {
@@ -10,7 +10,7 @@ import {
 import {
   buildEventSchedule, resolveEvent,
   evaluateCharacter, applyCommand,
-  calculateEraProgressDelta, createCustomer,
+  calculateEraProgressDelta, createCustomer, createStaffMember,
   randomFloat, randomInt,
 } from "./engine/simulation.js";
 import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";

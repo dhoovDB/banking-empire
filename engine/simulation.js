@@ -9,6 +9,16 @@ export const randomFloat = () => Math.random();
 export const randomInt   = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 export const pickRandom  = arr => arr[randomInt(0, arr.length - 1)];
 
+// ─── STAFF FACTORY ────────────────────────────────────────────────────────────
+export function createStaffMember(role, _existing) {
+  return {
+    role,
+    skin:   pickRandom(SKIN_TONES),
+    hair:   pickRandom(HAIR_COLORS),
+    outfit: pickRandom(STAFF_OUTFITS.teller),
+  };
+}
+
 // ─── CHARACTER FACTORY ────────────────────────────────────────────────────────
 export function createCustomer(id, queuePos, role = "customer") {
   const defaults = ROLE_DEFAULTS[role];
@@ -56,7 +66,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (char.state === "entering") {
       return isNear(char, vaultPos)
         ? { type: "ROBBER_START_VAULT", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 1.4 };
+        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.038 };
     }
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
@@ -64,7 +74,7 @@ export function evaluateCharacter(char, simState, policy) {
       if (caught) return { type: "ROBBER_CAUGHT", charId: char.id };
       return { type: "ROBBER_PROGRESS", charId: char.id };
     }
-    if (char.state === "leaving") return { type: "MOVE_TO_EXIT", charId: char.id, speed: 1.8 };
+    if (char.state === "leaving") return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.050 };
   }
 
   // Inspector
@@ -72,7 +82,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (char.state === "entering") {
       return isNear(char, managerPos)
         ? { type: "INSPECTOR_START", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: managerPos, speed: 0.8 };
+        : { type: "MOVE", charId: char.id, target: managerPos, speed: 0.028 };
     }
     if (char.state === "inspecting") {
       if (char.progress >= 1) return { type: "INSPECTOR_DONE", charId: char.id };
@@ -88,7 +98,7 @@ export function evaluateCharacter(char, simState, policy) {
     const slot = queueSlots[Math.min(char.queuePos, queueSlots.length - 1)];
     return isNear(char, slot)
       ? { type: "JOIN_QUEUE", charId: char.id }
-      : { type: "MOVE", charId: char.id, target: slot, speed: 1.5 };
+      : { type: "MOVE", charId: char.id, target: slot, speed: 0.040 };
   }
 
   if (char.state === "queued") {
@@ -123,7 +133,7 @@ export function evaluateCharacter(char, simState, policy) {
 
   if (char.state === "leaving" || char.state === "fleeing")
     return { type: "MOVE_TO_EXIT", charId: char.id,
-             speed: char.state === "fleeing" ? 2.2 : 1.4 };
+             speed: char.state === "fleeing" ? 0.060 : 0.035 };
 
   return { type: "NOOP", charId: char.id };
 }
@@ -236,7 +246,8 @@ function moveToward(char, target, speed = 0.028) {
   const dx = target.gx - char.gx, dy = target.gy - char.gy;
   const d  = Math.sqrt(dx*dx + dy*dy);
   if (d < 0.09) return { ...char, isMoving: false };
-  return { ...char, gx: char.gx + (dx/d)*speed, gy: char.gy + (dy/d)*speed, isMoving: true };
+  const step = Math.min(d - 0.001, speed);
+  return { ...char, gx: char.gx + (dx/d)*step, gy: char.gy + (dy/d)*step, isMoving: true };
 }
 
 function calcFrustrationDelta(policy, impacts) {
