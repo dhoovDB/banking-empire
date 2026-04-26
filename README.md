@@ -5,8 +5,8 @@ through play. Manage a community bank across 20 quarters — set interest rates,
 hire staff, handle crises, and navigate Federal Reserve decisions — while keeping
 your regulators happy and your depositors happier.
 
-Inspired by Tavern Master. Built by an AI Product Manager who used to work in
-fintech and wanted to understand React architecture better.
+Built by an AI Product Manager who used to work in fintech and wanted to
+understand React architecture better.
 
 ---
 
@@ -18,6 +18,19 @@ fintech and wanted to understand React architecture better.
 - **Era 2:** Regional Bank — Fed rate decisions, product expansion
 - **Era 3:** Commercial Bank — recession mechanics, acquisition opportunities
 - **Era 4:** National Bank — systemic risk, institutional depositors
+
+---
+
+## Running locally
+
+```bash
+git clone https://github.com/dhoovDB/banking-empire
+cd banking-empire
+npm install
+npm run dev
+```
+
+Then open http://localhost:5173 in your browser. Node 18+ required.
 
 ---
 
@@ -91,19 +104,6 @@ respond — or the market forces a default outcome. Inaction is a choice.
 
 ---
 
-## Running locally
-
-```bash
-git clone https://github.com/[yourhandle]/banking-empire
-cd banking-empire
-npm install
-npm run dev
-```
-
-Requires Node 18+. No backend — everything runs in the browser.
-
----
-
 ## Built with
 
 - React 18
@@ -117,6 +117,8 @@ Requires Node 18+. No backend — everything runs in the browser.
 
 Full roadmap in `ROADMAP.md`. Highlights:
 
+- Hosted demo — deploy to GitHub Pages or Vercel so the game is playable
+  without cloning the repo
 - Era 3 and 4 content — commercial banking, fintech challenger, acquisition events
 - Tiered staffing model for era 3+ (regional hubs replace individual tellers)
 - Infrastructure assets replacing physical branch upgrades at scale
@@ -128,9 +130,9 @@ Full roadmap in `ROADMAP.md`. Highlights:
 ## Diligence
 
 Built collaboratively with Claude (Anthropic) across multiple sessions. The
-financial model, game design decisions, and product direction are the author's
-own. AI was used for code scaffolding, architecture review, and rubber-ducking
-the NIM formula.
+architecture, financial model, game design decisions, and all editorial calls
+are the author's own. Claude was used as a pair programmer and thinking partner —
+for code scaffolding, architecture review, and working through the NIM formula.
 
 The game simplifies real banking concepts for educational purposes. Where it
 simplifies, it says so. Primary sources linked throughout.
