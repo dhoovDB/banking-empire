@@ -1,0 +1,143 @@
+import { describe, it, expect } from "vitest";
+import {
+  calculateNIM,
+  calculateCAR,
+  calculateInterestIncome,
+  calculateInterestExpense,
+  calculateNPLProvision,
+  isLiquidityBreached,
+  getConcentrationRisk,
+  getKPIStatus,
+} from "./financials.js";
+
+describe("calculateNIM", () => {
+  it("returns 0 when loans is zero", () => {
+    expect(calculateNIM(0, 80000, 6.5, 2.0)).toBe(0);
+  });
+
+  it("computes (income - expense) / loans * 100", () => {
+    // income = 100000 * 0.08 * 0.25 = 2000
+    // expense = 50000 * 0.04 * 0.25 = 500
+    // NIM = 1500 / 100000 * 100 = 1.5
+    expect(calculateNIM(100000, 50000, 8, 4)).toBe(1.5);
+  });
+
+  it("era 1 starting state is intentionally below warn threshold", () => {
+    // deposits = loans = 80000 at default rates — NIM ~1.125%, warn threshold is 1.2%
+    // Low NIM is the teaching mechanic: grow loans to improve it
+    expect(calculateNIM(80000, 80000, 6.5, 2.0)).toBeCloseTo(1.125, 2);
+  });
+
+  it("returns negative NIM when deposit costs exceed interest income", () => {
+    // income = 100000 * 0.04 * 0.25 = 1000
+    // expense = 200000 * 0.08 * 0.25 = 4000
+    // NIM = -3000 / 100000 * 100 = -3
+    expect(calculateNIM(100000, 200000, 4, 8)).toBe(-3);
+  });
+});
+
+describe("calculateCAR", () => {
+  it("returns 100 when loans is zero", () => {
+    expect(calculateCAR(20000, 0)).toBe(100);
+  });
+
+  it("computes equity / loans * 100", () => {
+    // 20000 / 80000 * 100 = 25.0
+    expect(calculateCAR(20000, 80000)).toBe(25);
+  });
+
+  it("identifies a bank below the 8% regulatory minimum", () => {
+    expect(calculateCAR(7000, 100000)).toBe(7);
+  });
+});
+
+describe("calculateInterestIncome", () => {
+  it("returns quarterly interest income on loan book", () => {
+    // 80000 * 0.065 * 0.25 = 1300
+    expect(calculateInterestIncome(80000, 6.5)).toBe(1300);
+  });
+
+  it("returns 0 with no loans", () => {
+    expect(calculateInterestIncome(0, 6.5)).toBe(0);
+  });
+});
+
+describe("calculateInterestExpense", () => {
+  it("returns quarterly cost of deposits", () => {
+    // 80000 * 0.02 * 0.25 = 400
+    expect(calculateInterestExpense(80000, 2.0)).toBe(400);
+  });
+});
+
+describe("calculateNPLProvision", () => {
+  it("provisions one quarter of annual NPL loss", () => {
+    // 100000 * 0.03 * 0.25 = 750
+    expect(calculateNPLProvision(100000, 0.03)).toBe(750);
+  });
+});
+
+describe("isLiquidityBreached", () => {
+  it("returns true when cash falls below 2% of deposits", () => {
+    // floor = 80000 * 0.02 = 1600, cash = 1000
+    expect(isLiquidityBreached(1000, 80000)).toBe(true);
+  });
+
+  it("returns false when cash is above the floor", () => {
+    expect(isLiquidityBreached(5000, 80000)).toBe(false);
+  });
+});
+
+describe("getConcentrationRisk", () => {
+  const config = { whaleThreshold: 0.20, catastrophicThreshold: 0.35 };
+
+  it("returns none when totalDeposits is zero", () => {
+    expect(getConcentrationRisk(0, 0, config)).toBe("none");
+  });
+
+  it("returns none below whale threshold", () => {
+    // 100000 / 1000000 = 10%
+    expect(getConcentrationRisk(100000, 1000000, config)).toBe("none");
+  });
+
+  it("returns warning between whale and catastrophic thresholds", () => {
+    // 250000 / 1000000 = 25%
+    expect(getConcentrationRisk(250000, 1000000, config)).toBe("warning");
+  });
+
+  it("returns critical at or above catastrophic threshold", () => {
+    // 400000 / 1000000 = 40%
+    expect(getConcentrationRisk(400000, 1000000, config)).toBe("critical");
+  });
+});
+
+describe("getKPIStatus", () => {
+  it("returns healthy for an unknown KPI key", () => {
+    expect(getKPIStatus("unknown", 5)).toBe("healthy");
+  });
+
+  it("NIM: danger below 0.5%", () => {
+    expect(getKPIStatus("nim", 0.3)).toBe("danger");
+  });
+
+  it("NIM: warn between 0.5% and 1.2%", () => {
+    expect(getKPIStatus("nim", 0.8)).toBe("warn");
+  });
+
+  it("NIM: healthy above 1.2%", () => {
+    expect(getKPIStatus("nim", 2.0)).toBe("healthy");
+  });
+
+  it("NPL: danger when ratio exceeds 9% (inverted)", () => {
+    expect(getKPIStatus("npl", 0.10)).toBe("danger");
+  });
+
+  it("NPL: warn between 5% and 9% (inverted)", () => {
+    expect(getKPIStatus("npl", 0.06)).toBe("warn");
+  });
+
+  it("NPL: healthy below 5% (inverted)", () => {
+    expect(getKPIStatus("npl", 0.03)).toBe("healthy");
+  });
+});
+
+// TODO: add calculateFrustration tests when the function is built
