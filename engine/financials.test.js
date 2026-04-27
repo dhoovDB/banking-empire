@@ -5,6 +5,7 @@ import {
   calculateInterestIncome,
   calculateInterestExpense,
   calculateNPLProvision,
+  calculateOneTimeCosts,
   isLiquidityBreached,
   getConcentrationRisk,
   getKPIStatus,
@@ -163,6 +164,37 @@ describe("getKPIStatus", () => {
 
   it("NPL boundary: exactly 0.05 is healthy, not warn (strict greater-than)", () => {
     expect(getKPIStatus("npl", 0.05)).toBe("healthy");
+  });
+});
+
+describe("calculateOneTimeCosts", () => {
+  const base = { staff: { tellers: 2, loanOfficers: 1, security: 0 }, fac: { vaultLevel: 1, waitingSeats: 2 } };
+
+  it("returns 0 when nothing changed from committed", () => {
+    expect(calculateOneTimeCosts(base.staff, base.fac, base)).toBe(0);
+  });
+
+  it("charges hireCost for each net-new teller (5000 each)", () => {
+    const staff = { ...base.staff, tellers: 4 };
+    // 2 new tellers × $5,000 = $10,000
+    expect(calculateOneTimeCosts(staff, base.fac, base)).toBe(10000);
+  });
+
+  it("charges vault upgrade cost for each level gained (level 1→2 = $8,000)", () => {
+    const fac = { ...base.fac, vaultLevel: 2 };
+    expect(calculateOneTimeCosts(base.staff, fac, base)).toBe(8000);
+  });
+
+  it("charges $500 per net-new waiting seat", () => {
+    const fac = { ...base.fac, waitingSeats: 5 };
+    // 3 new seats × $500 = $1,500
+    expect(calculateOneTimeCosts(base.staff, fac, base)).toBe(1500);
+  });
+
+  it("combines staff hire and facility upgrade costs", () => {
+    const staff = { ...base.staff, tellers: 3 };  // +1 teller = $5,000
+    const fac   = { ...base.fac,  vaultLevel: 2 }; // level 1→2 = $8,000
+    expect(calculateOneTimeCosts(staff, fac, base)).toBe(13000);
   });
 });
 

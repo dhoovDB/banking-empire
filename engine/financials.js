@@ -86,7 +86,8 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
   const netIncome = interestIncome - interestExpense - nplProvision
                   - salaries + depositGrowth + whaleBonus
                   - (dayResult.robberyLoss || 0)
-                  - (dayResult.regulatoryFine || 0);
+                  - (dayResult.regulatoryFine || 0)
+                  - (dayResult.setupCost || 0);
 
   const updatedFin = {
     ...fin,
@@ -113,6 +114,7 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
     depositGrowth, whaleBonus,
     robberyLoss:    dayResult.robberyLoss    || 0,
     regulatoryFine: dayResult.regulatoryFine || 0,
+    setupCost:      dayResult.setupCost      || 0,
     netIncome,
     updatedFin,
   };

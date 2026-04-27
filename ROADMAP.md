@@ -306,6 +306,18 @@ figures without updating every threshold simultaneously.
 
 ---
 
+## Distribution
+
+- [ ] **Deploy to GitHub Pages** — Vite builds a static bundle; a `gh-pages`
+      branch with `base: '/banking-empire/'` in `vite.config.js` is all that's
+      needed. Replace the `[Live demo link]` placeholder in `README.md` once live.
+- [ ] **Demo video** — record a 60–90 second screen capture of a live playthrough:
+      setup → quarter 1 crisis → report screen. Embed in `README.md` as a GIF or
+      linked MP4. Target: a hiring manager can see the game working in 90 seconds
+      without cloning the repo.
+
+---
+
 ## Technical backlog
 
 - [ ] **Condition-triggered events** — `whaleExit` is the first event that

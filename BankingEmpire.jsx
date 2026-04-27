@@ -135,6 +135,7 @@ export default function BankingEmpire() {
       vaultPos:       VAULT_POS,
       managerPos:     MGR_POS,
       pendingRushSpawns: 0,
+      setupCost:         calculateOneTimeCosts(staff, fac, committed),
     };
 
     particles.current = [];
@@ -260,6 +261,7 @@ export default function BankingEmpire() {
       walkouts:       s.walkouts,
       robberyLoss:    s.robberyLoss,
       regulatoryFine,
+      setupCost:      s.setupCost,
       robberCaught:   s.robberCaught,
       whaleServed:    s.whaleServed,
     };

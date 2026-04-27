@@ -204,9 +204,32 @@ The scheduler in `buildEventSchedule()` picks it up automatically.
 See `ROADMAP.md` for the full backlog. Current known gaps:
 
 - Era advancement logic — `eraProgress` accumulates but `era` never increments
-- One-time setup costs shown in UI but not deducted from cash (`calculateOneTimeCosts` not wired
-  into `finishDay`)
 - Condition-triggered events (e.g., `whaleExit`) — all events are currently probability-scheduled
 - Win conditions beyond surviving 20 quarters
-- Unit tests for engine functions
 - localStorage persistence
+
+---
+
+## Status Reporting
+
+Every task summary must end with this block — no exceptions:
+
+---
+WRITTEN TO DISK: [list every file created or modified]
+GIT STATUS: [exactly one of: "untracked" / "modified, not staged" / "staged, not committed" / "committed locally" / "pushed to origin/main"]
+NEXT STEP: [one sentence — what needs to happen next]
+---
+
+Additional rules:
+- Never use the word "done" or "complete" without this block immediately following it
+- Never assume a file was written to disk unless the write command ran and returned no errors in this session
+- Never assume a commit happened unless git commit ran and showed a commit hash in this session
+- Never assume a push happened unless git push ran and returned no errors in this session
+- If asked "is this on GitHub?" — the answer is yes only if git push ran successfully in this session
+- If the session was interrupted or restarted, git status must be run before reporting any git state
+
+The four possible states in order are:
+1. PROPOSED — shown in chat, not yet written to disk
+2. ON DISK — written locally, not tracked by Git
+3. COMMITTED LOCALLY — in Git history on this machine, not on GitHub
+4. PUSHED — on GitHub at origin/main

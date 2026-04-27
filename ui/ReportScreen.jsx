@@ -112,6 +112,7 @@ export default function ReportScreen({ report, fin, onNextQuarter, onRestart }) 
           <PLRow label="Staff salaries"      value={-report.salaries}         sub />
           {report.robberyLoss > 0     && <PLRow label="Robbery loss"      value={-report.robberyLoss}     sub />}
           {report.regulatoryFine > 0  && <PLRow label="Regulatory fine"   value={-report.regulatoryFine}  sub />}
+          {report.setupCost > 0       && <PLRow label="Setup costs"        value={-report.setupCost}       sub />}
 
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
             <PLRow label="Net income" value={report.netIncome} color={report.netIncome >= 0 ? C.good : C.danger} />
