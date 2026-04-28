@@ -145,6 +145,45 @@ rate sensitivity, and which staff type is required to serve them.
 
 ---
 
+## Visual / simulation feedback
+
+*From playtest session — player feedback on the sim screen.*
+
+- [x] **Larger tiles and canvas** — ISO tile size increased 33% (72→96). Canvas
+      height increased to 600. Branch floor now fills more of the screen.
+- [x] **More floor tiles** — security row, teller row, and entrance row all
+      extended. More visible "boxes" in the isometric layout.
+- [x] **Entrance doors** — front wall with two door openings drawn at the
+      bottom of the entrance row. Customers now have a visible doorway to
+      walk through.
+- [x] **Vault redesign** — replaced the minimal circle with a full vault door:
+      steel frame, riveted disc, combination wheel, hinges, and handle.
+- [x] **Larger speech bubbles** — font 9→13px, taller bubble with bigger tail.
+      Readable at a glance during active queues.
+- [ ] **Customer spawn visibility** — customers currently spawn at gy:7.4
+      (below entrance tiles). If the "walked in" moment still reads late after
+      the tile-size increase, consider spawning at gy:6.6 so the doorway
+      crossing is more explicit. See spawn rate note in BankingEmpire.jsx.
+- [ ] **Customer pathfinding — bunching at entrance** — customers queue up
+      near the front door and stay bunched 75%+ through the quarter instead of
+      spreading naturally toward the teller counter. Queue slots may be too
+      tightly clustered near gy:5.5–6.1, or the `progress > 0.2` threshold
+      for moving to a teller slot kicks in too late. Investigate whether slot
+      spacing or the service-advance condition needs tuning.
+- [ ] **Loan officer does not appear on canvas** — hiring a loan officer in
+      setup has no visible character in the sim. The ghost placeholder at
+      toIso(1.8, 2.5) disappears when loanOfficers > 0, but no named chibi
+      replaces it (tellerRoster only covers the teller role). Need a separate
+      loan officer roster and a named chibi drawn at the manager-desk position.
+- [ ] **Staff role tooltips / "why hire this?" context** — the setup screen
+      shows staff counts with no explanation of what each role actually does.
+      Players don't know a loan officer improves lending income or that
+      security guards reduce robbery loss. Each staff type needs a one-line
+      mechanic summary on the setup screen (e.g., "Loan Officer — enables loan
+      applications; each officer increases lending income per quarter") and
+      ideally a hover tooltip that spells out the exact effect so the player
+      can make an informed hire decision.
+
 ## UX and educational layer
 
 - [ ] **Proactive tutorial** — era 1 quarter 1 should walk the player through

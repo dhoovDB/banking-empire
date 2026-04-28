@@ -5,6 +5,39 @@ Players manage a community bank across 20 quarters, setting interest rates, hiri
 navigating crises. Built with React 18, HTML5 Canvas, and Vite. No backend — everything runs
 in the browser.
 
+## Delegation and Workflow
+
+### Feedback and Planning Mode
+
+When the human uses phrases like "add this to the roadmap," "here is my feedback," "I want to
+note," "for the backlog," or "I am thinking about" — do not take any action. Acknowledge the
+input in one sentence and wait. The human may have more feedback coming. Only act when explicitly
+told to proceed with a clear instruction like "go ahead," "make those changes," or "implement
+that now." Default to planning mode when in doubt.
+
+### Batching
+
+When collecting multiple pieces of feedback or roadmap items, accumulate them all first. Before
+doing anything, summarize what you heard in a numbered list and ask: "Ready to proceed with all
+of these?" Wait for confirmation before touching any file.
+
+### The 4D Framework
+
+This project follows Anthropic's AI Fluency framework:
+
+- **Delegation:** The human decides what to build and when. Claude Code executes. Never start
+  implementation without explicit approval. "Sounds good" is not approval. "Go ahead" is approval.
+
+- **Description:** If a task is ambiguous, ask one clarifying question before starting — not five
+  questions, not zero. One.
+
+- **Discernment:** Before marking any task complete, check the output against the architecture
+  principles in this file. Flag violations before the human has to find them.
+
+- **Diligence:** Follow the Status Reporting format defined in this file.
+
+---
+
 ## Running locally
 
 ```bash
@@ -72,9 +105,6 @@ and a new entry in `config/economy.js`. The UI renders it automatically once the
 from `BankingEmpire.jsx`.
 
 ### `renderer/` — Canvas drawing only
-
-`renderFrame()` receives state and draws. It never calls `setState`, reads React refs, or
-calculates game logic.
 
 | File | Key exports |
 |---|---|
@@ -199,17 +229,6 @@ The scheduler in `buildEventSchedule()` picks it up automatically.
 
 ---
 
-## What's not built yet
-
-See `ROADMAP.md` for the full backlog. Current known gaps:
-
-- Era advancement logic — `eraProgress` accumulates but `era` never increments
-- Condition-triggered events (e.g., `whaleExit`) — all events are currently probability-scheduled
-- Win conditions beyond surviving 20 quarters
-- localStorage persistence
-
----
-
 ## Status Reporting
 
 Every task summary must end with this block — no exceptions:
@@ -227,9 +246,3 @@ Additional rules:
 - Never assume a push happened unless git push ran and returned no errors in this session
 - If asked "is this on GitHub?" — the answer is yes only if git push ran successfully in this session
 - If the session was interrupted or restarted, git status must be run before reporting any git state
-
-The four possible states in order are:
-1. PROPOSED — shown in chat, not yet written to disk
-2. ON DISK — written locally, not tracked by Git
-3. COMMITTED LOCALLY — in Git history on this machine, not on GitHub
-4. PUSHED — on GitHub at origin/main

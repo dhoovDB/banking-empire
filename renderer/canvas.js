@@ -2,10 +2,11 @@ import { EMOTIONS } from "../config/characters.js";
 import { tickParticles } from "./particles.js";
 
 export const CANVAS_W = 960;
-export const CANVAS_H = 540;
+export const CANVAS_H = 600;
 
-const ISO_TW = 72;
-const ISO_TH = 36;
+const ISO_TW = 96;
+const ISO_TH = 48;
+const S = ISO_TW / 72; // ~1.33 — scales furniture proportionally
 
 const PAL = {
   entrance: "#c8aa85", entranceAlt: "#b89a70",
@@ -27,21 +28,27 @@ export function toIso(gx, gy) {
 }
 
 const TILE_MAP = [
-  ...[2,3,4,5,6].map(gx => ({ gx, gy:6, c: gx%2 ? PAL.entrance   : PAL.entranceAlt })),
-  ...[1,2,3].map(gx     => ({ gx, gy:5, c: gx%2 ? PAL.waiting    : PAL.waitingAlt  })),
-  ...[4,5,6,7].map(gx   => ({ gx, gy:5, c: gx%2 ? PAL.tellers    : PAL.tellersAlt  })),
-  { gx:1,gy:4,c:PAL.waiting  },{ gx:2,gy:4,c:PAL.waitingAlt },{ gx:3,gy:4,c:PAL.waiting  },
-  { gx:4,gy:4,c:PAL.tellers  },{ gx:5,gy:4,c:PAL.tellersAlt },{ gx:6,gy:4,c:PAL.tellers  },{ gx:7,gy:4,c:PAL.tellers },
-  { gx:1,gy:3,c:PAL.waiting  },{ gx:2,gy:3,c:PAL.waiting    },{ gx:3,gy:3,c:PAL.tellers  },
-  { gx:4,gy:3,c:PAL.tellersAlt},{ gx:5,gy:3,c:PAL.tellers   },{ gx:6,gy:3,c:PAL.tellers  },
-  { gx:7,gy:3,c:PAL.vault    },{ gx:8,gy:3,c:PAL.vault      },
-  { gx:1,gy:2,c:PAL.manager  },{ gx:2,gy:2,c:PAL.managerAlt },{ gx:3,gy:2,c:PAL.manager  },
-  { gx:4,gy:2,c:PAL.tellers  },{ gx:5,gy:2,c:PAL.tellersAlt },{ gx:6,gy:2,c:PAL.vault    },
-  { gx:7,gy:2,c:PAL.vaultAlt },{ gx:8,gy:2,c:PAL.vault      },
-  ...[2,3,4,5,6].map(gx => ({ gx, gy:1, c: gx%2 ? PAL.security : PAL.securityAlt })),
+  // gy=1 Security — 7 tiles (was 5)
+  ...[1,2,3,4,5,6,7].map(gx => ({ gx, gy:1, c: gx%2 ? PAL.security : PAL.securityAlt })),
+  // gy=2 Manager + Tellers + Vault
+  { gx:1,gy:2,c:PAL.manager  }, { gx:2,gy:2,c:PAL.managerAlt }, { gx:3,gy:2,c:PAL.manager  },
+  { gx:4,gy:2,c:PAL.tellers  }, { gx:5,gy:2,c:PAL.tellersAlt }, { gx:6,gy:2,c:PAL.vault    },
+  { gx:7,gy:2,c:PAL.vaultAlt }, { gx:8,gy:2,c:PAL.vault      },
+  // gy=3 Waiting + Tellers + Vault
+  { gx:1,gy:3,c:PAL.waiting  }, { gx:2,gy:3,c:PAL.waiting    }, { gx:3,gy:3,c:PAL.tellers  },
+  { gx:4,gy:3,c:PAL.tellersAlt},{ gx:5,gy:3,c:PAL.tellers    }, { gx:6,gy:3,c:PAL.tellers  },
+  { gx:7,gy:3,c:PAL.vault    }, { gx:8,gy:3,c:PAL.vault      },
+  // gy=4 Waiting + Tellers
+  { gx:1,gy:4,c:PAL.waiting  }, { gx:2,gy:4,c:PAL.waitingAlt }, { gx:3,gy:4,c:PAL.waiting  },
+  { gx:4,gy:4,c:PAL.tellers  }, { gx:5,gy:4,c:PAL.tellersAlt }, { gx:6,gy:4,c:PAL.tellers  }, { gx:7,gy:4,c:PAL.tellers },
+  // gy=5 Waiting + Tellers — extended to gx=8
+  ...[1,2,3].map(gx     => ({ gx, gy:5, c: gx%2 ? PAL.waiting : PAL.waitingAlt })),
+  ...[4,5,6,7,8].map(gx => ({ gx, gy:5, c: gx%2 ? PAL.tellers : PAL.tellersAlt })),
+  // gy=6 Entrance — 7 tiles (was 5)
+  ...[1,2,3,4,5,6,7].map(gx => ({ gx, gy:6, c: gx%2 ? PAL.entrance : PAL.entranceAlt })),
 ];
 
-const TILE_LABELS = { "6,3":"Waiting","5,4":"Tellers","2,3":"Manager","7,3":"Vault","4,1":"Security" };
+const TILE_LABELS = { "4,2":"Waiting", "4,5":"Tellers", "2,2":"Manager", "2,7":"Vault", "1,4":"Security" };
 
 // ─── FLOOR & WALLS ────────────────────────────────────────────────────────────
 function drawFloor(ctx, gx, gy, color, label) {
@@ -54,13 +61,13 @@ function drawFloor(ctx, gx, gy, color, label) {
   ctx.strokeStyle = PAL.floorLine; ctx.lineWidth = 0.5; ctx.stroke();
   if (label) {
     ctx.fillStyle = "rgba(255,215,150,0.2)";
-    ctx.font = "7px 'Nunito',sans-serif"; ctx.textAlign = "center";
+    ctx.font = "8px 'Nunito',sans-serif"; ctx.textAlign = "center";
     ctx.fillText(label, x, y+ISO_TH/2+3);
   }
 }
 
 function drawWall(ctx, gx, gy, side) {
-  const { x, y } = toIso(gx, gy); const wh = 34;
+  const { x, y } = toIso(gx, gy); const wh = 44;
   ctx.fillStyle = side === "left" ? PAL.wallL : PAL.wallR;
   ctx.beginPath();
   if (side === "left") {
@@ -74,69 +81,167 @@ function drawWall(ctx, gx, gy, side) {
   ctx.strokeStyle = "rgba(255,190,120,0.035)"; ctx.lineWidth = 0.5; ctx.stroke();
 }
 
+// ─── ENTRANCE DOORS ───────────────────────────────────────────────────────────
+// Draws the front face of the building along gy=6: solid wall sections
+// flanking door openings at gx=3 and gx=5.
+function drawEntrance(ctx) {
+  const wh = 28;
+  [1,2,3,4,5,6,7].forEach(gx => {
+    const isDoor = gx === 3 || gx === 5;
+    const { x, y } = toIso(gx, 6);
+    // Left face of tile (the front face facing the viewer)
+    const x0 = x - ISO_TW/2, y0 = y + ISO_TH/2;
+    const x1 = x,             y1 = y + ISO_TH;
+
+    if (isDoor) {
+      // Dark threshold / interior glimpse
+      ctx.fillStyle = "#0d0805";
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.lineTo(x1, y1 + wh); ctx.lineTo(x0, y0 + wh);
+      ctx.closePath(); ctx.fill();
+      // Wood door panel
+      ctx.fillStyle = "#5a3015";
+      ctx.beginPath();
+      ctx.moveTo(x0+4, y0+4); ctx.lineTo(x1-4, y1+4);
+      ctx.lineTo(x1-4, y1+wh-3); ctx.lineTo(x0+4, y0+wh-3);
+      ctx.closePath(); ctx.fill();
+      // Door frame
+      ctx.strokeStyle = "#8B6040"; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.lineTo(x1, y1+wh); ctx.lineTo(x0, y0+wh); ctx.closePath();
+      ctx.stroke();
+      // Door handle (gold dot)
+      const hx = x0 + (x1-x0)*0.7 + 4;
+      const hy = y0 + (y1-y0)*0.7 + wh*0.45;
+      ctx.fillStyle = "#d4af37";
+      ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI*2); ctx.fill();
+    } else {
+      // Solid wall
+      ctx.fillStyle = "#4a2e18";
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.lineTo(x1, y1+wh); ctx.lineTo(x0, y0+wh);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(255,190,120,0.05)"; ctx.lineWidth = 0.5; ctx.stroke();
+    }
+  });
+}
+
 // ─── FURNITURE ────────────────────────────────────────────────────────────────
 function drawFurniture(ctx, { numTellers, vaultOpen, robberyActive, activeTellers }) {
   // Teller counter
   const ds = toIso(3.1,3.65), de = toIso(7.2,3.3);
   ctx.fillStyle = "#5a3810"; ctx.beginPath();
-  ctx.roundRect(ds.x-18,ds.y-5,de.x-ds.x+46,14,5); ctx.fill();
+  ctx.roundRect(ds.x-18*S, ds.y-6*S, de.x-ds.x+50*S, 16*S, 5); ctx.fill();
   ctx.fillStyle = "#7a5228"; ctx.beginPath();
-  ctx.roundRect(ds.x-16,ds.y-3,de.x-ds.x+42,10,4); ctx.fill();
+  ctx.roundRect(ds.x-16*S, ds.y-4*S, de.x-ds.x+46*S, 12*S, 4); ctx.fill();
   for (let i = 0; i < numTellers; i++) {
     const { x, y } = toIso(3.3+i*0.75, 3.55);
     const active = activeTellers.has(i);
     if (active) {
       ctx.fillStyle = "rgba(245,166,35,0.22)"; ctx.beginPath();
-      ctx.ellipse(x,y+2,30,16,0,0,Math.PI*2); ctx.fill();
+      ctx.ellipse(x, y+2, 34, 18, 0, 0, Math.PI*2); ctx.fill();
     }
     ctx.fillStyle = active ? "rgba(245,180,60,0.3)" : "rgba(180,220,255,0.11)";
-    ctx.beginPath(); ctx.roundRect(x-13,y-12,26,8,2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x-15*S, y-14*S, 30*S, 10*S, 2); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.09)"; ctx.lineWidth = 0.5; ctx.stroke();
   }
-  // Vault
-  const vd = toIso(7.5,2.35);
-  ctx.fillStyle = "#300808"; ctx.beginPath();
-  ctx.roundRect(vd.x-20,vd.y-28,40,38,8); ctx.fill();
-  ctx.strokeStyle = robberyActive?"#ff3333":vaultOpen?"#cc6633":"#883333";
-  ctx.lineWidth = robberyActive?3:2; ctx.beginPath();
-  ctx.arc(vd.x,vd.y-9,14,0,Math.PI*2); ctx.stroke();
+
+  // Vault — full vault door with frame, rivets, combination wheel
+  const vd = toIso(7.5, 2.35);
+  const vs = S * 1.1;
+  // Alcove recess
+  ctx.fillStyle = "#0f0408";
+  ctx.beginPath(); ctx.roundRect(vd.x-38*vs, vd.y-68*vs, 76*vs, 74*vs, 6); ctx.fill();
+  // Steel door frame
+  ctx.fillStyle = "#2a2a38";
+  ctx.beginPath(); ctx.roundRect(vd.x-32*vs, vd.y-62*vs, 64*vs, 64*vs, 4); ctx.fill();
+  ctx.strokeStyle = "#3a3a4a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(vd.x-32*vs, vd.y-62*vs, 64*vs, 64*vs, 4); ctx.stroke();
+  // Vault door disc
+  ctx.fillStyle = robberyActive ? "#3a0000" : "#252535";
+  ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 26*vs, 0, Math.PI*2); ctx.fill();
+  // Door rim band
+  ctx.strokeStyle = robberyActive ? "#ff2222" : vaultOpen ? "#bb7722" : "#484858";
+  ctx.lineWidth = robberyActive ? 5 : 4;
+  ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 26*vs, 0, Math.PI*2); ctx.stroke();
+  // Outer rivets
+  for (let i = 0; i < 10; i++) {
+    const a = (i/10)*Math.PI*2;
+    const bx = vd.x + Math.cos(a)*22*vs, by = vd.y-30*vs + Math.sin(a)*22*vs;
+    ctx.fillStyle = "#505060";
+    ctx.beginPath(); ctx.arc(bx, by, 2.8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#7a7a8a";
+    ctx.beginPath(); ctx.arc(bx-0.6, by-0.6, 1.2, 0, Math.PI*2); ctx.fill();
+  }
+  // Inner decorative ring
+  ctx.strokeStyle = robberyActive ? "#ff4400" : "#363646";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 17*vs, 0, Math.PI*2); ctx.stroke();
+  // Combination wheel spokes
   const rot = vaultOpen ? 0.5 : 0;
+  ctx.lineCap = "round";
   for (let i = 0; i < 6; i++) {
-    const a = (i/6)*Math.PI*2+rot;
-    ctx.strokeStyle = robberyActive?"#ff4":"#c33"; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(vd.x,vd.y-9);
-    ctx.lineTo(vd.x+Math.cos(a)*13,vd.y-9+Math.sin(a)*13); ctx.stroke();
+    const a = (i/6)*Math.PI*2 + rot;
+    ctx.strokeStyle = robberyActive ? "#ffee00" : "#7788aa";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(vd.x + Math.cos(a)*4, vd.y-30*vs + Math.sin(a)*4);
+    ctx.lineTo(vd.x + Math.cos(a)*15*vs, vd.y-30*vs + Math.sin(a)*15*vs);
+    ctx.stroke();
   }
-  ctx.fillStyle = robberyActive?"#f44":"#933"; ctx.beginPath();
-  ctx.arc(vd.x,vd.y-9,3.5,0,Math.PI*2); ctx.fill();
-  if (robberyActive) {
-    ctx.fillStyle="rgba(255,60,60,0.13)"; ctx.beginPath();
-    ctx.arc(vd.x,vd.y-9,24,0,Math.PI*2); ctx.fill();
+  ctx.lineCap = "butt";
+  // Center hub
+  ctx.fillStyle = robberyActive ? "#ff3333" : "#8899bb";
+  ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#1a2030";
+  ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 3, 0, Math.PI*2); ctx.fill();
+  // Hinges (left side)
+  [-0.4, 0.4].forEach(f => {
+    const hy = vd.y - 30*vs + f*22*vs;
+    ctx.fillStyle = "#3a3a4a";
+    ctx.beginPath(); ctx.roundRect(vd.x-31*vs, hy-5, 7, 10, 2); ctx.fill();
+    ctx.strokeStyle = "#555566"; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.roundRect(vd.x-31*vs, hy-5, 7, 10, 2); ctx.stroke();
+  });
+  // Handle bar
+  ctx.fillStyle = "#6677aa";
+  ctx.beginPath(); ctx.roundRect(vd.x+8*vs, vd.y-34*vs, 10*vs, 8*vs, 3); ctx.fill();
+  // Open/robbery glow
+  if (vaultOpen || robberyActive) {
+    ctx.fillStyle = robberyActive ? "rgba(255,50,50,0.14)" : "rgba(255,140,40,0.10)";
+    ctx.beginPath(); ctx.arc(vd.x, vd.y-30*vs, 40*vs, 0, Math.PI*2); ctx.fill();
   }
+
   // Manager desk
-  const md = toIso(1.6,2.4);
-  ctx.fillStyle="#3a1d52"; ctx.beginPath(); ctx.roundRect(md.x-24,md.y-7,48,16,5); ctx.fill();
-  ctx.fillStyle="#4a2a6a"; ctx.beginPath(); ctx.roundRect(md.x-20,md.y-4,40,11,4); ctx.fill();
-  ctx.fillStyle="#1a1a2a"; ctx.beginPath(); ctx.roundRect(md.x-8,md.y-14,16,10,2); ctx.fill();
+  const md = toIso(1.6, 2.4);
+  ctx.fillStyle="#3a1d52"; ctx.beginPath(); ctx.roundRect(md.x-28*S, md.y-8*S, 56*S, 18*S, 5); ctx.fill();
+  ctx.fillStyle="#4a2a6a"; ctx.beginPath(); ctx.roundRect(md.x-24*S, md.y-5*S, 48*S, 13*S, 4); ctx.fill();
+  ctx.fillStyle="#1a1a2a"; ctx.beginPath(); ctx.roundRect(md.x-10*S, md.y-16*S, 20*S, 12*S, 2); ctx.fill();
+
   // Security desk
-  const sd = toIso(4.0,1.4);
-  ctx.fillStyle="#1a3520"; ctx.beginPath(); ctx.roundRect(sd.x-28,sd.y-5,56,14,5); ctx.fill();
-  // Chairs
-  for (let i=0;i<7;i++) {
-    const {x,y}=toIso(1.4+i*0.38,4.9);
-    ctx.fillStyle="#7a4820"; ctx.beginPath(); ctx.roundRect(x-7,y-4,14,11,3); ctx.fill();
-    ctx.fillStyle="#9a6030"; ctx.beginPath(); ctx.roundRect(x-5.5,y-2.5,11,7,2); ctx.fill();
+  const sd = toIso(4.0, 1.4);
+  ctx.fillStyle="#1a3520"; ctx.beginPath(); ctx.roundRect(sd.x-32*S, sd.y-6*S, 64*S, 16*S, 5); ctx.fill();
+
+  // Waiting chairs
+  for (let i=0; i<7; i++) {
+    const {x,y}=toIso(1.4+i*0.38, 4.9);
+    ctx.fillStyle="#7a4820"; ctx.beginPath(); ctx.roundRect(x-8,y-5,16,13,3); ctx.fill();
+    ctx.fillStyle="#9a6030"; ctx.beginPath(); ctx.roundRect(x-6,y-3,12,8,2); ctx.fill();
   }
+
   // Plants
-  [toIso(1.0,5.5),toIso(7.2,5.5),toIso(0.9,2.8),toIso(8.5,2.8)].forEach(p=>drawPlant(ctx,p));
+  [toIso(1.0,5.5), toIso(8.0,5.5), toIso(0.9,2.8), toIso(8.5,2.8)].forEach(p => drawPlant(ctx,p));
 }
 
-function drawPlant(ctx,{x,y}) {
-  ctx.fillStyle="#3a1e0c"; ctx.beginPath(); ctx.roundRect(x-4.5,y-1,9,9,3); ctx.fill();
-  ctx.fillStyle="#2d5c1a"; ctx.beginPath(); ctx.arc(x,y-4,8,0,Math.PI*2); ctx.fill();
+function drawPlant(ctx, {x,y}) {
+  ctx.fillStyle="#3a1e0c"; ctx.beginPath(); ctx.roundRect(x-5,y-1,10,10,3); ctx.fill();
+  ctx.fillStyle="#2d5c1a"; ctx.beginPath(); ctx.arc(x,y-5,9,0,Math.PI*2); ctx.fill();
   ctx.fillStyle="#3a7a20";
-  ctx.beginPath(); ctx.arc(x-5,y-6,5.5,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x+5,y-6,5.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x-6,y-7,6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+6,y-7,6,0,Math.PI*2); ctx.fill();
 }
 
 // ─── CHIBI ────────────────────────────────────────────────────────────────────
@@ -258,12 +363,14 @@ function drawFace(ctx,emotion,bob,role) {
 
 // ─── BUBBLE ───────────────────────────────────────────────────────────────────
 export function drawBubble(ctx, x, y, text, bg="#fffbee") {
-  ctx.font="bold 9px 'Nunito',sans-serif";
-  const tw=ctx.measureText(text).width, bw=tw+12, bh=17, bx=x-bw/2, by=y-44;
-  ctx.fillStyle=bg; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,4); ctx.fill();
-  ctx.strokeStyle="rgba(0,0,0,0.1)"; ctx.lineWidth=0.5; ctx.stroke();
-  ctx.fillStyle=bg; ctx.beginPath(); ctx.moveTo(x-3,by+bh); ctx.lineTo(x,by+bh+6); ctx.lineTo(x+3,by+bh); ctx.closePath(); ctx.fill();
-  ctx.fillStyle="#2a1a0e"; ctx.textAlign="center"; ctx.fillText(text,x,by+bh-5);
+  ctx.font = "bold 13px 'Nunito',sans-serif";
+  const tw = ctx.measureText(text).width, bw = tw+18, bh = 24, bx = x-bw/2, by = y-56;
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 5); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.12)"; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.fillStyle = bg; ctx.beginPath();
+  ctx.moveTo(x-4, by+bh); ctx.lineTo(x, by+bh+9); ctx.lineTo(x+4, by+bh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#2a1a0e"; ctx.textAlign = "center";
+  ctx.fillText(text, x, by+bh-6);
 }
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
@@ -308,8 +415,11 @@ export function renderFrame(ctx, renderState, ts) {
   g.addColorStop(0,"rgba(90,55,20,0.12)"); g.addColorStop(1,"rgba(0,0,0,0)");
   ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
+  // Walls drawn before floor so floor covers their top edge
   TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right"));
   TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left"));
+  drawEntrance(ctx);
+
   TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
 
   queueSlots.slice(0,8).forEach(({gx,gy})=>{
