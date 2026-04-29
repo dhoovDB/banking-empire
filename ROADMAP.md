@@ -1,8 +1,8 @@
 # Banking Empire — Product Roadmap
 
 This file captures ideas, features, and design decisions for future development.
-It is a living document. When an idea gets built, move it to the relevant config
-or engine file with a comment. When an idea gets cut, note why.
+It is a living document. When an idea gets built, move it to the Completed section
+with a date. When an idea gets cut, note why.
 
 ---
 
@@ -10,211 +10,200 @@ or engine file with a comment. When an idea gets cut, note why.
 
 - Every mechanic should teach something true about how banking works
 - Complexity unlocks gradually — era 1 is simple enough for anyone
-- A player who finishes 20 quarters should be able to explain NIM, CAR,
-  and NPL to a non-banker
+- A player who finishes 20 quarters should be able to explain NIM, CAR, and NPL to a non-banker
 - Fun is a feature. If it isn't fun, the education doesn't land.
 
 ---
 
-## Win / loss conditions
+## Definition of done — v1
 
-*Not yet designed. Needs decisions before progression.js is written.*
+**Banking Empire v1 ships when:**
+- [ ] The game runs end-to-end for a full 20-quarter playthrough without crashing
+- [ ] A hosted demo link exists (GitHub Pages) and works on desktop
+- [ ] A hiring manager can understand what the game is within 90 seconds of opening the README
+- [ ] No known bugs that break core gameplay (rate sliders, sim loop, quarterly report)
+- [ ] Setup costs are correctly deducted when the sim starts
+- [ ] At least two loss conditions fire correctly (negative equity, NPL receivership)
 
-### Loss conditions (beyond the current FDIC seizure on negative equity)
+Everything beyond this is v2. Resist the pull to keep adding until v1 ships.
 
-- [ ] Cash hits zero during an active event (run, robbery) with no credit line
-- [ ] NPL ratio exceeds 12% for two consecutive quarters — triggers forced
-      receivership
-- [ ] Reputation drops below 20 and stays there for two quarters — depositor
-      flight makes recovery impossible
-- [ ] CAR falls below regulatory minimum and player ignores recapitalisation
-      warning for one quarter
-
-### Win conditions
-
-*Current: survive 20 quarters. Future ideas:*
-
-- [ ] Reach era 4 (National Bank) with CAR > 12% and reputation > 80
-- [ ] Achieve a specific asset size milestone (e.g. $10M in loans outstanding)
-- [ ] Complete an acquisition event (era 3+) — absorb a failing competitor
-- [ ] "Legacy" ending: finish with a specific combination of KPIs that
-      triggers a narrative summary of what kind of banker you were
-
-### Design question
-Should there be multiple ending types (predatory bank vs. community pillar vs.
-growth machine) that give the player a "banking identity" based on their
-decisions across 20 quarters? Worth exploring in era design.
+See SHORT TERM section for the specific bugs and gaps behind each criterion.
 
 ---
 
-## Customer categories
+## SHORT TERM — v1 blockers
+*These must be done before anything else. In priority order.*
 
-*Currently all customers are functionally identical except whales.*
+### 1. Core simulation bugs
+*Problem: the sim loop has known issues that break the player experience.*
 
-### Proposed customer types
+- [ ] **Customer pathfinding — bunching at entrance** — customers queue near
+      the front door instead of spreading toward tellers. Queue slots may be
+      too tightly clustered (gy:5.5–6.1) or the progress > 0.2 service-advance
+      threshold kicks in too late. Investigate slot spacing first.
+- [ ] **Loan officer missing from canvas** — hiring a loan officer has no
+      visible character. Ghost placeholder disappears but no named chibi
+      replaces it. Need a separate loan officer roster drawn at the manager-desk
+      position — same pattern as teller roster.
+- [ ] **Customer spawn visibility** — customers spawn at gy:7.4 (below entrance).
+      If doorway crossing reads late, try gy:6.6 so the entry moment is explicit.
 
-| Type | Era unlocked | Deposit range | Special mechanic |
+### 2. Setup screen clarity
+*Problem: players don't understand what they're buying.*
+
+- [ ] **Staff role tooltips** — each staff type needs a one-line mechanic summary
+      on the setup screen. Players are making blind hire decisions right now.
+- [ ] **Vault era lock** — vault levels 2 and 3 should be visually greyed out
+      in era 1 with "Unlocks Era 2" label.
+
+### 3. Financial correctness minimums
+*Problem: the game gives players incorrect signals about their starting position
+and doesn't enforce consequences for bad decisions.*
+
+- [ ] **One-time costs deducted at sim start** — setup screen shows projected
+      cash after costs but the deduction doesn't happen when the sim starts.
+      Players begin richer than the screen told them. Fix: apply
+      `calculateOneTimeCosts()` result when transitioning from setup to sim.
+- [ ] **FDIC seizure confirmed working** — negative equity should trigger game
+      over. Verify the condition fires end-to-end through the quarterly
+      evaluation loop.
+- [ ] **NPL receivership wired** — NPL > 12% for two consecutive quarters
+      triggers forced receivership. The condition is defined in progression.js
+      but not evaluated each quarter. Wire it into the quarterly evaluation.
+      Additional loss scenarios expand in v2.
+
+### 4. Deploy to GitHub Pages
+*Problem: no one can play the game without cloning the repo.*
+
+- [ ] Add `base: '/banking-empire/'` to vite.config.js
+- [ ] Run `npm run build` and deploy `dist/` to gh-pages branch
+- [ ] Replace `[Live demo link]` placeholder in README.md
+- [ ] Verify it loads on desktop (mobile acceptable to skip for v1)
+
+### 5. README demo video
+*Problem: a hiring manager won't clone a repo to evaluate a portfolio piece.*
+
+- [ ] Record 60–90 second screen capture: setup → quarter 1 event → report screen
+- [ ] Export as GIF or MP4 and embed in README above "What you'll learn"
+
+---
+
+## MEDIUM TERM — v2 quality
+*Do these after v1 ships. Improves depth and replayability.*
+
+### Gameplay loop improvements
+
+- [ ] **Proactive NIM tutorial** — era 1 quarter 1 should explain NIM before
+      the player's first rate decision. Currently players discover it reactively.
+
+- [ ] **KPI history chart** — players see current values but not trajectory.
+      A falling CAR looks fine at 11% until you realize it was 14% three quarters ago.
+
+- [ ] **Banker's journal** — end-of-quarter plain-language narrative.
+      "Your NIM compressed because deposit costs rose faster than lending income."
+      Good showcase of Claude API integration for the portfolio.
+
+- [ ] **Win / loss conditions — full suite** — v1 ships with negative equity
+      and NPL receivership. v2 adds:
+      - [ ] Reputation < 20 for two quarters triggers depositor flight
+      - [ ] CAR below regulatory minimum ignored for one quarter triggers seizure
+      - [ ] Multiple endings based on playstyle (community pillar, growth machine, steady hand)
+
+- [ ] **Era 2 unlock wired** — eraProgress accumulates but era transition
+      doesn't change available staff, events, or facilities yet.
+
+### Financial model depth
+
+- [ ] **Educational links rendered** — links defined in economy.js but not
+      shown in the KPI panel UI. One line change in KPIPanel.jsx.
+
+### Testing
+
+- [ ] **Thorough unit test coverage** — initial Vitest suite covers
+      `engine/financials.js`. Expand to `engine/simulation.js` (evaluateCharacter,
+      resolveEvent, buildEventSchedule) and loss condition evaluation in
+      `engine/financials.js`. Write tests before adding era 2 content so
+      regressions surface immediately.
+
+---
+
+## LONG TERM — v3 and beyond
+*Don't start these until v2 is stable. Each needs its own design session.*
+
+### Era 3-4 content
+
+- [ ] **Tiered staffing model** — era 3-4 replaces individual tellers with
+      organisational units: Branch Manager, Regional Hub, Mobile App,
+      Digital Transformation. Requires canvas metaphor rethink (see below).
+
+- [ ] **Infrastructure assets** — Server racks, compliance departments,
+      call centers replace vault/waiting seats at era 3+ scale.
+
+- [ ] **Macro events** — Fed rate decisions with one-quarter player window,
+      recession mechanics, market boom. Config designed in events.js. Engine not wired.
+
+- [ ] **Customer categories** — students, small businesses, retirees,
+      commercial, institutional. Each requires different staff to serve.
+
+- [ ] **Era 3+ events** — former staff joins competitor, acquisition
+      opportunity, fintech challenger, whistleblower.
+
+### Canvas metaphor redesign (design session required before building)
+
+The individual chibi-at-desk metaphor works at era 1-2 community bank scale —
+it's tactile, human, and matches the Tavern Master loop the game is built on.
+At era 3-4 it breaks down. You can't represent a $50M regional bank as
+six tellers walking to a counter. The canvas needs a different visual language
+that matches the educational moment: banking at scale is an infrastructure
+and systems business, not a people business.
+
+Three options to evaluate in the design session:
+- **City map** — zoom out to a map view with branch dots and customer flow
+  lines between them. Communicates geographic scale and network effects.
+- **Zoom-out toggle** — keep the branch view but add a regional dashboard
+  accessible via toggle. Players can switch between operational detail
+  and strategic overview.
+- **Dashboard sim** — era 3+ replaces the canvas entirely with a data
+  dashboard. Reinforces that decision-making at scale is about reading
+  indicators, not watching individuals.
+
+Flag for renderer design session. Decision will cascade into how tiered
+staffing and infrastructure assets are represented visually.
+
+### Technical foundations (required before building era 3 content)
+
+- [ ] **Condition-triggered events** — whaleExit fires on state condition,
+      not probability. Engine needs a second evaluation pass each quarter,
+      separate from the probability scheduler.
+
+- [ ] **Individual loan book** — NPL is currently a manually nudged number.
+      A real model tracks loans individually with origination quarter, rate,
+      type, and default probability. NPL ratio then emerges from actual loan
+      performance. Required for era 3+ realism.
+
+- [ ] **Risk-weighted CAR** — current `equity / loans` works for era 1-2.
+      Era 3+ with mortgages, credit cards, and commercial loans requires true
+      risk-weighted assets. Each product type carries a Basel III risk weight
+      (mortgages: 35–50%, commercial: 100%, etc.).
+      Reference: https://www.bis.org/publ/bcbs128.pdf
+
+---
+
+## Detailed specs for future work
+
+### Customer categories
+
+| Type | Era | Deposit range | Special mechanic |
 |---|---|---|---|
 | Retail (current) | 1 | $1.5k–$10k | Base customer |
 | Student | 1 | $500–$2k | High churn, reputation-sensitive |
 | Small business | 2 | $15k–$80k | Requires loan officer to serve |
 | Retiree | 2 | $20k–$120k | Rate-sensitive, low churn |
 | Commercial | 3 | $200k–$2M | Requires commercial loan officer |
-| Whale (current) | 1 | $380k–$1M | Random event, private banking suite needed |
+| Whale (current) | 1 | $380k–$1M | Random event, watch concentration risk |
 | Institutional | 4 | $5M–$50M | Requires era 4 unlock |
 
-### Customer category config structure
-Each type should define: deposit range, loan likelihood, frustration rate,
-rate sensitivity, and which staff type is required to serve them.
-
----
-
-## Product expansion
-
-*Currently: deposits and loans only.*
-
-### Era 2 products
-- [ ] **Savings accounts** — higher deposit rate, stickier customers,
-      requires separate product config
-- [ ] **Auto loans** — shorter duration than personal loans, different NPL profile
-- [ ] **Credit cards** — revolving credit, interchange fee income stream,
-      higher NPL risk
-
-### Era 3 products
-- [ ] **Mortgages** — long duration, large balance, housing market sensitivity
-- [ ] **Commercial lines of credit** — tied to commercial customer category
-- [ ] **Wealth management** — fee income, requires private banking suite facility
-
-### Era 4 products
-- [ ] **Investment products** — introduces market risk to balance sheet
-- [ ] **International transfers** — FX exposure, compliance events
-
----
-
-## Branch upgrades
-
-*Currently: vault level and waiting seats only.*
-
-### Proposed upgrades
-
-| Upgrade | Era | Cost | Effect |
-|---|---|---|---|
-| IT Systems | 2 | $15k | Reduces outage impact 60% |
-| Private Banking Suite | 2 | $25k | Required to serve whales and retirees properly |
-| Second floor | 3 | $40k | Commercial lending division, unlocks commercial customers |
-| Drive-through | 2 | $12k | Increases daily customer throughput 30% |
-| ATM network | 2 | $8k | Passive income, reduces teller load |
-| Digital banking | 3 | $30k | Reduces walk-outs, new customer category: digital-first |
-
----
-
-## Events backlog
-
-### Era 3+ events
-- [ ] **Former staff joins competitor** — a teller you let go (or who was
-      poached) now works at First National and is bringing clients with them.
-      Triggers deposit flight proportional to their tenure. Flagged during
-      characters.js design session.
-- [ ] **Acquisition opportunity** — a failing community bank is available
-      to purchase. High risk, high reward. Introduces due diligence mechanic.
-- [ ] **Fintech challenger** — a digital-only competitor launches in your
-      market. Ongoing reputation and deposit pressure, not a one-time event.
-- [ ] **Whistleblower** — internal compliance issue surfaces. Tests whether
-      player has been running clean books.
-
-### Era 4 events
-- [ ] **Congressional hearing** — national-scale regulatory scrutiny
-- [ ] **Systemic crisis** — correlated defaults across loan book,
-      tests capital adequacy under stress
-
----
-
-## Macro mechanics
-
-### Fed decision window (designed, not yet built)
-- One-quarter window with three player options
-- Market forces a default outcome if player does nothing
-- Each option has reputation and rate consequences
-- See events.js for full config structure
-
-### Future macro indicators
-- [ ] **Housing market index** — leads mortgage NPL risk
-- [ ] **Unemployment rate** — leads consumer loan defaults
-- [ ] **Yield curve** — inversion signals recession, affects NIM
-- [ ] **Inflation** — affects real deposit rate, customer behaviour
-
----
-
-## Visual / simulation feedback
-
-*From playtest session — player feedback on the sim screen.*
-
-- [x] **Larger tiles and canvas** — ISO tile size increased 33% (72→96). Canvas
-      height increased to 600. Branch floor now fills more of the screen.
-- [x] **More floor tiles** — security row, teller row, and entrance row all
-      extended. More visible "boxes" in the isometric layout.
-- [x] **Entrance doors** — front wall with two door openings drawn at the
-      bottom of the entrance row. Customers now have a visible doorway to
-      walk through.
-- [x] **Vault redesign** — replaced the minimal circle with a full vault door:
-      steel frame, riveted disc, combination wheel, hinges, and handle.
-- [x] **Larger speech bubbles** — font 9→13px, taller bubble with bigger tail.
-      Readable at a glance during active queues.
-- [ ] **Customer spawn visibility** — customers currently spawn at gy:7.4
-      (below entrance tiles). If the "walked in" moment still reads late after
-      the tile-size increase, consider spawning at gy:6.6 so the doorway
-      crossing is more explicit. See spawn rate note in BankingEmpire.jsx.
-- [ ] **Customer pathfinding — bunching at entrance** — customers queue up
-      near the front door and stay bunched 75%+ through the quarter instead of
-      spreading naturally toward the teller counter. Queue slots may be too
-      tightly clustered near gy:5.5–6.1, or the `progress > 0.2` threshold
-      for moving to a teller slot kicks in too late. Investigate whether slot
-      spacing or the service-advance condition needs tuning.
-- [ ] **Loan officer does not appear on canvas** — hiring a loan officer in
-      setup has no visible character in the sim. The ghost placeholder at
-      toIso(1.8, 2.5) disappears when loanOfficers > 0, but no named chibi
-      replaces it (tellerRoster only covers the teller role). Need a separate
-      loan officer roster and a named chibi drawn at the manager-desk position.
-- [ ] **Staff role tooltips / "why hire this?" context** — the setup screen
-      shows staff counts with no explanation of what each role actually does.
-      Players don't know a loan officer improves lending income or that
-      security guards reduce robbery loss. Each staff type needs a one-line
-      mechanic summary on the setup screen (e.g., "Loan Officer — enables loan
-      applications; each officer increases lending income per quarter") and
-      ideally a hover tooltip that spells out the exact effect so the player
-      can make an informed hire decision.
-
-## UX and educational layer
-
-- [ ] **Proactive tutorial** — era 1 quarter 1 should walk the player through
-      NIM before they encounter their first rate decision
-- [ ] **KPI history chart** — show trend lines on the KPI screen so the
-      player can see trajectory, not just current state
-- [ ] **Banker's journal** — end-of-quarter narrative summary in plain
-      language. "Your NIM compressed this quarter because deposit costs
-      rose faster than lending income. Here's what that means..."
-- [ ] **Decision replay** — post-game screen showing key decision points
-      and their downstream effects. Reinforces learning.
-
----
-
-## Tiered staffing and automation
-
-*Significant redesign — own design session before building.*
-
-The current model (place individual tellers, manage a queue) is the right
-loop for era 1-2. It's the Tavern Master mechanic: direct, tactile, human-scale.
-At era 3-4 it breaks down — you can't manage $80M in deposits with 6 tellers.
-
-### Proposed model
-
-**Era 1-2: Individual staff (current)**
-Player places tellers, loan officers, security guards one at a time.
-Each teller serves one customer per tick. This is the core loop.
-
-**Era 3-4: Organisational units**
-Player buys capacity in bulk. The individual chibi tellers are replaced
-by representations of teams and systems.
+### Tiered staffing (era 3-4)
 
 | Unit | Era | Capacity | Cost |
 |---|---|---|---|
@@ -223,38 +212,7 @@ by representations of teams and systems.
 | Mobile App | 3 | Handles 100x low-value transactions passively | $50k + $5k/qtr |
 | Digital Transformation | 4 | 1,000x throughput, unlocks institutional customers | $200k |
 
-### Design question
-The transition from individual tellers to organisational units should feel
-meaningful — not just a bigger number. Consider a "Branch Review" milestone
-event at quarter 11 where the player explicitly decides to scale the model
-or stay boutique. Staying boutique could be a valid strategy for the
-"Community Pillar" ending.
-
-### Canvas implication
-Era 3-4 canvas sim needs a different visual metaphor. Individual chibis
-at desks no longer makes sense at regional scale. Options:
-- Abstract to a city map with branch dots and customer flow lines
-- Keep the branch view but add a "zoom out" toggle to the regional view
-- Era 3+ gets a dashboard sim instead of a canvas sim
-
-Flag for renderer design session.
-
----
-
-## Infrastructure assets
-
-*Replaces "waiting seats" at era 3+ scale. Own design session before building.*
-
-Physical branch assets (waiting seats, vault, drive-through) make sense
-at era 1-2 community bank scale. At era 3-4 the meaningful capital decisions
-are about systems, compliance, and digital infrastructure.
-
-### Proposed asset categories
-
-**Era 1-2: Physical branch assets (current)**
-Vault, waiting seats, drive-through, ATM
-
-**Era 3-4: Infrastructure assets**
+### Infrastructure assets (era 3-4)
 
 | Asset | Era | Effect | Cost |
 |---|---|---|---|
@@ -265,132 +223,63 @@ Vault, waiting seats, drive-through, ATM
 | Data Center | 4 | Required for institutional customers | $100k |
 | Fraud Detection System | 3 | Reduces NPL from credit card products | $40k |
 
-### Transition mechanic
-The moment a player upgrades to era 3, the setup screen should visually
-shift — physical branch layout gives way to an infrastructure dashboard.
-This transition is itself an educational moment: banking at scale is an
-infrastructure business, not a people business.
-
 ---
 
 ## Design decisions log
-
-*Decisions made during development, and why. Read this before changing
-anything that seems "obviously wrong" — it probably isn't.*
+*Read this before changing anything that seems "obviously wrong" — it probably isn't.*
 
 ### Era 1 NIM is intentionally low
-Starting NIM with true formula (deposits = loans = $80k, rates 6.5%/2.0%)
-is ~1.125% — below the "warn" threshold. This is intentional.
+Starting NIM (~1.125%) is below the warn threshold. This teaches the core
+mechanic: deposits are a cost, loans are revenue. The KPI explainer tells
+the player this. Do not raise it by tweaking rates — that hides the lesson.
+If era 1 feels too punishing, adjust warn/danger thresholds in economy.js.
 
-The player's first task is growing the loan book relative to deposits,
-which teaches the core banking mechanic: deposits are a cost centre,
-loans are the revenue engine. You want more of the latter.
-
-The KPI explainer tells the player this explicitly. Low NIM in era 1
-is a teaching mechanic, not a bug. Do not raise starting NIM by
-inflating the lending rate or reducing the deposit rate — that would
-obscure the lesson.
-
-If era 1 feels too punishing, the fix is to adjust KPI warn/danger
-thresholds in `economy.js` — not to change starting financials.
-
-### True NIM vs rate spread
-The original codebase used `lendingRate - depositRate` as a proxy for NIM.
-This was replaced with the correct formula during the engine refactor:
-
-```
-NIM = (interest income - interest expense) / loans * 100
-```
-
-This change cascaded into:
-- KPI thresholds recalibrated (warn: 1.2%, danger: 0.5%)
-- Era progress NIM targets lowered (1.2% and 2.0% replace 3.0% and 4.0%)
-- Starting deposits reduced from $110k to $80k to match loan book
-- All thresholds confirmed as quarterly figures (formula uses * 0.25)
-
+### True NIM formula
+`NIM = (interest income - interest expense) / loans * 100`
+Not rate spread. All thresholds are quarterly figures (formula uses * 0.25).
 Reference: https://en.wikipedia.org/wiki/Net_interest_margin
 
-### All financial thresholds are quarterly
-KPI warn/danger thresholds in `economy.js` and era progress targets in
-`progression.js` are calibrated against quarterly figures. The NIM
-formula multiplies annual rates by 0.25. Do not change this to annual
-figures without updating every threshold simultaneously.
+### Robbery locked to era 2+
+Era 1 players have no security staff, so a robbery offers no meaningful
+decision. `eraRange: [2, 4]` is intentional. Do not change to [1, 4].
+
+### Dynamic liquidity floor
+Loss condition: `cash < deposits * 0.02` — not a fixed number.
+Scales with the bank as it grows. Teaches reserve requirement proportionality.
+
+### Vault upgrades locked to era 2+
+Levels 2 and 3 serve no purpose in era 1 since robberies don't fire.
+They display as locked teasers, not active options.
 
 ---
 
-## Formula and financial model improvements
+## Completed
+*Add the date when moving items here.*
 
-### Era 3+ formula upgrades
-- [ ] **Risk-weighted CAR** — current `equity / loans` works for era 1-2.
-      Era 3+ with mortgages, credit cards, and commercial loans requires
-      true risk-weighted assets. Each product type carries a Basel III
-      risk weight (mortgages: 35-50%, commercial: 100%, etc).
-      Reference: https://www.bis.org/publ/bcbs128.pdf
-- [ ] **Individual loan book** — NPL ratio is currently a magic number
-      nudged by rate decisions. A proper model tracks individual loans
-      with origination quarter, rate, type, and default probability.
-      NPL ratio then emerges from actual loan performance rather than
-      being manually adjusted. Required for era 3+ realism.
-
-### Educational links
-- [ ] Each KPI explainer and educational note should link to a public
-      source for players who want to go deeper. Proposed sources:
-      - NIM: https://en.wikipedia.org/wiki/Net_interest_margin
-      - CAR: https://www.bis.org/fsi/fsisummaries/b3_capital.pdf
-      - NPL: https://www.imf.org/en/Publications/fandd/issues/2016/06/basics
-      - Reserve requirements: https://www.federalreserve.gov/monetarypolicy/reservereq.htm
-      - Fed rate decisions: https://www.federalreserve.gov/monetarypolicy/fomc.htm
-      These open in a new tab from the KPI explainer panel and event
-      educational notes. Keeps the game honest about its simplifications.
-
----
-
-## Distribution
-
-- [ ] **Deploy to GitHub Pages** — Vite builds a static bundle; a `gh-pages`
-      branch with `base: '/banking-empire/'` in `vite.config.js` is all that's
-      needed. Replace the `[Live demo link]` placeholder in `README.md` once live.
-- [ ] **Demo video** — record a 60–90 second screen capture of a live playthrough:
-      setup → quarter 1 crisis → report screen. Embed in `README.md` as a GIF or
-      linked MP4. Target: a hiring manager can see the game working in 90 seconds
-      without cloning the repo.
-
----
-
-## Technical backlog
-
-- [ ] **Condition-triggered events** — `whaleExit` is the first event that
-      fires based on a state condition rather than probability. Engine needs
-      a second event evaluation pass that checks conditions after each quarter,
-      separate from the probability scheduler. Design in engine session.
-- [ ] **Unit tests for engine functions** — pure functions in `financials.js`
-      and `simulation.js` are directly testable with Jest or Vitest. Start
-      with `calculateNIM`, `calculateCAR`, and `calculateFrustration`.
-      Good first contribution for anyone new to the codebase.
-- [ ] **E2E testing suite** — simulate a full 20-quarter playthrough
-      programmatically and assert win/loss conditions fire correctly.
-      Requires engine to be fully decoupled from React state first.
-- [ ] Persist game state to localStorage so a playthrough survives a
-      page refresh
-- [ ] Export quarterly report as a shareable summary card (image)
-- [ ] Mobile-responsive layout for setup and report screens
-      (canvas sim is desktop-only by design)
-- [ ] Seed-based random events — same seed = same event schedule,
-      useful for sharing "challenge runs"
+- [x] Refactor monolith into config / engine / renderer / ui layers
+- [x] True NIM formula replacing rate spread proxy
+- [x] Robbery eraRange changed to [2, 4]
+- [x] Dynamic liquidity loss condition (cash < deposits * 0.02)
+- [x] CLAUDE.md created with architecture principles and status reporting
+- [x] Larger tiles and canvas (ISO tile size 72 to 96, canvas height 600)
+- [x] More floor tiles — security, teller, and entrance rows extended
+- [x] Entrance doors — front wall with two door openings
+- [x] Vault redesign — steel frame, riveted disc, combination wheel
+- [x] Larger speech bubbles — font 9 to 13px
+- [x] Initial Vitest unit tests for engine/financials.js (2026-04-28)
 
 ---
 
 ## Cut ideas
-
-*Ideas that were considered and set aside, and why.*
 
 | Idea | Reason cut |
 |---|---|
 | Multiplayer competitive mode | Scope. Single-player educational arc first. |
 | Real historical Fed rate data | Breaks replayability — players would memorise optimal responses. |
 | 40-quarter playthrough | Reduced to 20. 40 is a live service product, not a portfolio piece. |
+| Era 2 branch upgrades (Drive-through, ATM, Digital banking, Private Banking Suite, IT Systems, Second floor) | Superseded by era 3-4 infrastructure model. Era 2 is the right time to extend gameplay depth, not branch fixtures. |
 
 ---
 
-*Last updated: during config layer refactor session.*
-*Next review: after progression.js is designed.*
+*Last updated: roadmap restructured with short/medium/long term prioritization.*
+*v1 definition of done added. Daily task selector will use SHORT TERM section.*

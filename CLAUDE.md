@@ -5,6 +5,10 @@ Players manage a community bank across 20 quarters, setting interest rates, hiri
 navigating crises. Built with React 18, HTML5 Canvas, and Vite. No backend — everything runs
 in the browser.
 
+The game is intentionally whimsical — chibi characters, isometric branch, coins flying across
+the canvas. That whimsy is not decoration. It's what makes the education land. A player who
+is charmed sticks around long enough to learn. A player who is bored does not.
+
 ## Delegation and Workflow
 
 ### Feedback and Planning Mode
@@ -138,6 +142,27 @@ The render loop (`renderLoop`) never calls `setState`. The simulation loop mutat
 
 ---
 
+## Design spirit
+
+**Fun is load-bearing.** The chibi sim is not an optional UI layer — it's why the financial
+concepts land. A mechanic that is technically correct but unfun is not finished. If the
+simulation feels inert, that's a bug.
+
+**Prefer alive over accurate — except the financials.** The core metrics (NIM, CAR, NPL,
+liquidity ratio) must be correct. Those are what the game teaches. Everything else — character
+movement, event pacing, visual feedback, UI copy — should favour feeling alive over being
+precise. A teller who visibly walks to a customer and pauses before serving them teaches more
+than a progress bar. Choose the more animated path when the cost is reasonable.
+
+**Whimsy is a feature, not polish.** Coin particles, speech bubbles, chibi expressions — these
+ship in v1, not after. Do not treat visual delight as something to layer on once the "real"
+work is done. It is the real work.
+
+**If it isn't fun, the education doesn't land.** This is in the ROADMAP guiding principles for
+a reason. Apply it as a filter when making implementation choices, not just product decisions.
+
+---
+
 ## Key design decisions
 
 Read this before changing anything that seems "obviously wrong." It probably isn't.
@@ -193,6 +218,14 @@ notes — follows these principles:
   NPL ratio."
 - **Brevity over completeness.** If cutting a sentence loses nothing essential, cut it. KPI
   explainers are one paragraph maximum.
+- **Match the register of the sim.** The canvas has chibi characters and flying coins. Copy
+  should feel like a knowledgeable friend, not a compliance manual. Warm, direct, slightly
+  irreverent.
+- **Lean into the drama.** A robbery is terrifying. A whale walking through the door is
+  exciting. A regulatory inspection is nerve-wracking. Write it that way. Events are stories,
+  not notifications.
+- **Whimsy is allowed.** A teller named "Mia" who waves at customers teaches more than a
+  generic "staff member." Named, specific, human details make the world feel real.
 
 The full writing principles are in the writing-kit repo. Check there before writing new in-game
 copy.
