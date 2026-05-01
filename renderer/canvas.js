@@ -1,12 +1,12 @@
 import { EMOTIONS } from "../config/characters.js";
 import { tickParticles } from "./particles.js";
 
-export const CANVAS_W = 960;
-export const CANVAS_H = 600;
+export const CANVAS_W = 1080;
+export const CANVAS_H = 640;
 
-const ISO_TW = 96;
-const ISO_TH = 48;
-const S = ISO_TW / 72; // ~1.33 — scales furniture proportionally
+const ISO_TW = 144;
+const ISO_TH = 72;
+const S = ISO_TW / 72; // 2.0 — scales furniture proportionally
 
 const PAL = {
   entrance: "#c8aa85", entranceAlt: "#b89a70",
@@ -22,8 +22,8 @@ const PAL = {
 
 export function toIso(gx, gy) {
   return {
-    x: CANVAS_W / 2 + (gx - gy) * (ISO_TW / 2),
-    y: 96           + (gx + gy) * (ISO_TH / 2),
+    x: CANVAS_W / 2 - 40 + (gx - gy) * (ISO_TW / 2),
+    y: 60                 + (gx + gy) * (ISO_TH / 2),
   };
 }
 
@@ -67,15 +67,15 @@ function drawFloor(ctx, gx, gy, color, label) {
 }
 
 function drawWall(ctx, gx, gy, side) {
-  const { x, y } = toIso(gx, gy); const wh = 44;
+  const { x, y } = toIso(gx, gy); const wh = 66;
   ctx.fillStyle = side === "left" ? PAL.wallL : PAL.wallR;
   ctx.beginPath();
   if (side === "left") {
     ctx.moveTo(x-ISO_TW/2,y+ISO_TH/2); ctx.lineTo(x,y+ISO_TH);
-    ctx.lineTo(x,y+ISO_TH+wh); ctx.lineTo(x-ISO_TW/2,y+ISO_TH/2+wh);
+    ctx.lineTo(x,y+ISO_TH-wh); ctx.lineTo(x-ISO_TW/2,y+ISO_TH/2-wh);
   } else {
     ctx.moveTo(x+ISO_TW/2,y+ISO_TH/2); ctx.lineTo(x,y+ISO_TH);
-    ctx.lineTo(x,y+ISO_TH+wh); ctx.lineTo(x+ISO_TW/2,y+ISO_TH/2+wh);
+    ctx.lineTo(x,y+ISO_TH-wh); ctx.lineTo(x+ISO_TW/2,y+ISO_TH/2-wh);
   }
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle = "rgba(255,190,120,0.035)"; ctx.lineWidth = 0.5; ctx.stroke();
@@ -85,44 +85,38 @@ function drawWall(ctx, gx, gy, side) {
 // Draws the front face of the building along gy=6: solid wall sections
 // flanking door openings at gx=3 and gx=5.
 function drawEntrance(ctx) {
-  const wh = 28;
+  const wh = 42;
   [1,2,3,4,5,6,7].forEach(gx => {
     const isDoor = gx === 3 || gx === 5;
     const { x, y } = toIso(gx, 6);
-    // Left face of tile (the front face facing the viewer)
     const x0 = x - ISO_TW/2, y0 = y + ISO_TH/2;
     const x1 = x,             y1 = y + ISO_TH;
 
     if (isDoor) {
-      // Dark threshold / interior glimpse
       ctx.fillStyle = "#0d0805";
       ctx.beginPath();
       ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
-      ctx.lineTo(x1, y1 + wh); ctx.lineTo(x0, y0 + wh);
+      ctx.lineTo(x1, y1 - wh); ctx.lineTo(x0, y0 - wh);
       ctx.closePath(); ctx.fill();
-      // Wood door panel
       ctx.fillStyle = "#5a3015";
       ctx.beginPath();
-      ctx.moveTo(x0+4, y0+4); ctx.lineTo(x1-4, y1+4);
-      ctx.lineTo(x1-4, y1+wh-3); ctx.lineTo(x0+4, y0+wh-3);
+      ctx.moveTo(x0+4, y0-4); ctx.lineTo(x1-4, y1-4);
+      ctx.lineTo(x1-4, y1-wh+3); ctx.lineTo(x0+4, y0-wh+3);
       ctx.closePath(); ctx.fill();
-      // Door frame
       ctx.strokeStyle = "#8B6040"; ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
-      ctx.lineTo(x1, y1+wh); ctx.lineTo(x0, y0+wh); ctx.closePath();
+      ctx.lineTo(x1, y1-wh); ctx.lineTo(x0, y0-wh); ctx.closePath();
       ctx.stroke();
-      // Door handle (gold dot)
       const hx = x0 + (x1-x0)*0.7 + 4;
-      const hy = y0 + (y1-y0)*0.7 + wh*0.45;
+      const hy = y0 - wh*0.45;
       ctx.fillStyle = "#d4af37";
       ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI*2); ctx.fill();
     } else {
-      // Solid wall
       ctx.fillStyle = "#4a2e18";
       ctx.beginPath();
       ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
-      ctx.lineTo(x1, y1+wh); ctx.lineTo(x0, y0+wh);
+      ctx.lineTo(x1, y1-wh); ctx.lineTo(x0, y0-wh);
       ctx.closePath(); ctx.fill();
       ctx.strokeStyle = "rgba(255,190,120,0.05)"; ctx.lineWidth = 0.5; ctx.stroke();
     }
@@ -130,8 +124,7 @@ function drawEntrance(ctx) {
 }
 
 // ─── FURNITURE ────────────────────────────────────────────────────────────────
-function drawFurniture(ctx, { numTellers, vaultOpen, robberyActive, activeTellers }) {
-  // Teller counter
+function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   const ds = toIso(3.1,3.65), de = toIso(7.2,3.3);
   ctx.fillStyle = "#5a3810"; ctx.beginPath();
   ctx.roundRect(ds.x-18*S, ds.y-6*S, de.x-ds.x+50*S, 16*S, 5); ctx.fill();
@@ -148,7 +141,9 @@ function drawFurniture(ctx, { numTellers, vaultOpen, robberyActive, activeTeller
     ctx.beginPath(); ctx.roundRect(x-15*S, y-14*S, 30*S, 10*S, 2); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.09)"; ctx.lineWidth = 0.5; ctx.stroke();
   }
+}
 
+function drawFurniture(ctx, { vaultOpen, robberyActive }) {
   // Vault — full vault door with frame, rivets, combination wheel
   const vd = toIso(7.5, 2.35);
   const vs = S * 1.1;
@@ -415,32 +410,37 @@ export function renderFrame(ctx, renderState, ts) {
   g.addColorStop(0,"rgba(90,55,20,0.12)"); g.addColorStop(1,"rgba(0,0,0,0)");
   ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
-  // Walls drawn before floor so floor covers their top edge
+  // Floor first, then walls rise from the back edges
+  TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
   TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right"));
   TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left"));
-  drawEntrance(ctx);
-
-  TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
 
   queueSlots.slice(0,8).forEach(({gx,gy})=>{
     const{x,y}=toIso(gx,gy); ctx.fillStyle="rgba(255,210,130,0.09)";
     ctx.beginPath(); ctx.ellipse(x,y+15,9,4.5,0,0,Math.PI*2); ctx.fill();
   });
 
-  drawFurniture(ctx,{ numTellers:staff.tellers, vaultOpen, robberyActive:activeEvent==="robbery", activeTellers });
+  // Back furniture (vault, manager, security, chairs) — before tellers
+  drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery" });
 
   // Ghost unlockable staff
   if (staff.loanOfficers===0) { const p=toIso(1.8,2.5); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#27ae60",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
   if (staff.security===0)     { const p=toIso(4.0,1.45);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#1a3020",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
-  // Named tellers
+  // Tellers drawn before counter so the counter face renders in front of them
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {
     const def=tellerRoster[i];
-    const{x,y}=toIso(tellerSlots[i].gx,tellerSlots[i].gy-0.25);
+    const{x,y}=toIso(tellerSlots[i].gx, tellerSlots[i].gy-0.25);
     const emotion=activeTellers.has(i)?"serving":"neutral";
     drawChibi(ctx,x,y-8,{id:800+i,role:"teller",skinTone:def.skin,hairColor:def.hair,outfitColor:def.outfit,isMoving:false,emotion},ts,{scale:0.9});
     if (activeTellers.has(i)) drawBubble(ctx,x,y-30,"Next please!");
   }
+
+  // Counter drawn after tellers — appears in front of them
+  drawTellerCounter(ctx,{ numTellers:staff.tellers, activeTellers });
+
+  // Entrance drawn last so it overlaps characters exiting
+  drawEntrance(ctx);
 
   // Customers sorted by depth
   [...chars].filter(c=>c.state!=="exited")

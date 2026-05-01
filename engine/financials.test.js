@@ -9,6 +9,7 @@ import {
   isLiquidityBreached,
   getConcentrationRisk,
   getKPIStatus,
+  checkLossConditions,
 } from "./financials.js";
 
 describe("calculateNIM", () => {
@@ -199,3 +200,73 @@ describe("calculateOneTimeCosts", () => {
 });
 
 // TODO: add calculateFrustration tests when the function is built
+
+describe("checkLossConditions", () => {
+  const INSOLVENCY = {
+    id: "insolvency", title: "FDIC Seizure", message: "Equity negative.",
+    trigger: { equity: { below: 0 } },
+  };
+  const LIQUIDITY = {
+    id: "liquidity", title: "Liquidity Crisis", message: "Cash too low.",
+    trigger: { cash: { belowFractionOfDeposits: 0.02 } },
+  };
+  const NPL = {
+    id: "npl", title: "NPL Crisis", message: "Receivership.",
+    trigger: { nplRatio: { above: 0.12, consecutiveQuarters: 2 } },
+  };
+
+  const healthy = { equity: 50000, cash: 10000, deposits: 100000, nplRatio: 0.03, reputation: 70 };
+
+  it("returns null when all conditions are healthy", () => {
+    expect(checkLossConditions(healthy, [healthy], [INSOLVENCY, LIQUIDITY, NPL])).toBe(null);
+  });
+
+  it("fires insolvency when equity goes negative", () => {
+    const fin = { ...healthy, equity: -1 };
+    expect(checkLossConditions(fin, [fin], [INSOLVENCY, LIQUIDITY, NPL])).toBe(INSOLVENCY);
+  });
+
+  it("does not fire insolvency when equity is exactly zero (strict below)", () => {
+    const fin = { ...healthy, equity: 0 };
+    expect(checkLossConditions(fin, [fin], [INSOLVENCY])).toBe(null);
+  });
+
+  it("fires liquidity when cash falls below 2% of deposits", () => {
+    // floor = 100000 * 0.02 = 2000; cash = 1999 triggers breach
+    const fin = { ...healthy, cash: 1999 };
+    expect(checkLossConditions(fin, [fin], [INSOLVENCY, LIQUIDITY, NPL])).toBe(LIQUIDITY);
+  });
+
+  it("does not fire NPL after only one quarter above threshold", () => {
+    const q1 = { ...healthy, nplRatio: 0.13 };
+    expect(checkLossConditions(q1, [q1], [NPL])).toBe(null);
+  });
+
+  it("fires NPL after two consecutive quarters above threshold", () => {
+    const q1 = { ...healthy, nplRatio: 0.13 };
+    const q2 = { ...healthy, nplRatio: 0.14 };
+    expect(checkLossConditions(q2, [q1, q2], [NPL])).toBe(NPL);
+  });
+
+  it("does not fire NPL when breach is non-consecutive (high, recovered, high)", () => {
+    const q1 = { ...healthy, nplRatio: 0.13 };
+    const q2 = { ...healthy, nplRatio: 0.09 };
+    const q3 = { ...healthy, nplRatio: 0.13 };
+    expect(checkLossConditions(q3, [q1, q2, q3], [NPL])).toBe(null);
+  });
+
+  it("fires NPL on the quarter that completes two consecutive breaches after a gap", () => {
+    // Q1 high, Q2 recovered, Q3 high, Q4 high → fires on Q4
+    const q1 = { ...healthy, nplRatio: 0.13 };
+    const q2 = { ...healthy, nplRatio: 0.09 };
+    const q3 = { ...healthy, nplRatio: 0.13 };
+    const q4 = { ...healthy, nplRatio: 0.15 };
+    expect(checkLossConditions(q4, [q1, q2, q3, q4], [NPL])).toBe(NPL);
+  });
+
+  it("does not fire NPL when exactly at the threshold (strict above)", () => {
+    const q1 = { ...healthy, nplRatio: 0.12 };
+    const q2 = { ...healthy, nplRatio: 0.12 };
+    expect(checkLossConditions(q2, [q1, q2], [NPL])).toBe(null);
+  });
+});

@@ -41,6 +41,17 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       the front door instead of spreading toward tellers. Queue slots may be
       too tightly clustered (gy:5.5–6.1) or the progress > 0.2 service-advance
       threshold kicks in too late. Investigate slot spacing first.
+- [ ] **Customer movement too slow** — customers visibly crawl. Speed values in
+      `evaluateCharacter` were calibrated for ISO_TW=96; with ISO_TW=144 the
+      grid units are larger so the same speed values cover less screen distance
+      per tick. Scale all speed constants proportionally (×1.5) or re-calibrate.
+- [ ] **Customers exit to corner instead of door** — after service, customers
+      walk to EXIT_POS `{gx:8.2, gy:6.0}` which is off-screen at the new tile
+      size. Move EXIT_POS to align with the door openings at gx≈3 or gx≈5, gy≈6.5.
+- [ ] **Inspector walks to corner** — same root cause as customer exit: target
+      position for the inspector character is outside the visible canvas area.
+      Audit all hardcoded target positions in `evaluateCharacter` / `resolveEvent`
+      against the new tile layout.
 - [ ] **Loan officer missing from canvas** — hiring a loan officer has no
       visible character. Ghost placeholder disappears but no named chibi
       replaces it. Need a separate loan officer roster drawn at the manager-desk
@@ -64,13 +75,9 @@ and doesn't enforce consequences for bad decisions.*
       cash after costs but the deduction doesn't happen when the sim starts.
       Players begin richer than the screen told them. Fix: apply
       `calculateOneTimeCosts()` result when transitioning from setup to sim.
-- [ ] **FDIC seizure confirmed working** — negative equity should trigger game
-      over. Verify the condition fires end-to-end through the quarterly
-      evaluation loop.
-- [ ] **NPL receivership wired** — NPL > 12% for two consecutive quarters
-      triggers forced receivership. The condition is defined in progression.js
-      but not evaluated each quarter. Wire it into the quarterly evaluation.
-      Additional loss scenarios expand in v2.
+- [x] **FDIC seizure confirmed working** — verified end-to-end; test added (2026-04-30)
+- [x] **NPL receivership wired** — fixed consecutive-quarters check (was counting
+      any N quarters in history; now checks the last N). Tests added. (2026-04-30)
 
 ### 4. Deploy to GitHub Pages
 *Problem: no one can play the game without cloning the repo.*
@@ -267,6 +274,8 @@ They display as locked teasers, not active options.
 - [x] Vault redesign — steel frame, riveted disc, combination wheel
 - [x] Larger speech bubbles — font 9 to 13px
 - [x] Initial Vitest unit tests for engine/financials.js (2026-04-28)
+- [x] NPL receivership: fixed consecutive-quarters check in checkLossConditions; 9 tests added (2026-04-30)
+- [x] FDIC seizure confirmed working end-to-end; insolvency test added (2026-04-30)
 
 ---
 

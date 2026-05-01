@@ -143,12 +143,16 @@ export function checkLossConditions(fin, history, lossConditions) {
         && isLiquidityBreached(fin.cash, fin.deposits))
       return condition;
     if (t.nplRatio?.above !== undefined) {
-      const consecutive = history.filter(q => q.nplRatio > t.nplRatio.above).length;
-      if (consecutive >= (t.nplRatio.consecutiveQuarters || 1)) return condition;
+      const needed = t.nplRatio.consecutiveQuarters || 1;
+      const recent = history.slice(-needed);
+      if (recent.length >= needed && recent.every(q => q.nplRatio > t.nplRatio.above))
+        return condition;
     }
     if (t.reputation?.below !== undefined) {
-      const consecutive = history.filter(q => q.reputation < t.reputation.below).length;
-      if (consecutive >= (t.reputation.consecutiveQuarters || 1)) return condition;
+      const needed = t.reputation.consecutiveQuarters || 1;
+      const recent = history.slice(-needed);
+      if (recent.length >= needed && recent.every(q => q.reputation < t.reputation.below))
+        return condition;
     }
   }
   return null;
