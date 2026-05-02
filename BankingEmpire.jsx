@@ -13,7 +13,27 @@ import {
   calculateEraProgressDelta, createCustomer, createStaffMember,
   randomFloat, randomInt,
 } from "./engine/simulation.js";
-import { renderFrame, CANVAS_W, CANVAS_H, toIso, pickCharacter } from "./renderer/canvas.js";
+import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";
+
+// Hit-test: returns the topmost clickable character near pixel (cssX, cssY).
+// Lives here (not in canvas.js) because it's a calculation, not a draw call.
+// Customers with `clicked: true` are excluded — one greet per customer.
+function pickCharacter(chars, cssX, cssY) {
+  const candidates = [...chars]
+    .filter(c => {
+      if (c.state === "exited") return false;
+      if (c.role === "customer") return !c.clicked;
+      if ((c.role === "whale" || c.role === "robber") && c.interactable) return true;
+      return false;
+    })
+    .sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy));
+  for (const c of candidates) {
+    const { x, y } = toIso(c.gx, c.gy);
+    const dx = cssX - x, dy = cssY - (y - 6);
+    if (dx*dx/(16*16) + dy*dy/(24*24) <= 1) return c;
+  }
+  return null;
+}
 import { spawnCoins }                              from "./renderer/particles.js";
 import SetupScreen                                 from "./ui/SetupScreen.jsx";
 import SimScreen                                   from "./ui/SimScreen.jsx";
@@ -29,7 +49,7 @@ const TELLER_SLOTS = [
   {gx:3.3,gy:3.4},{gx:4.0,gy:3.25},{gx:4.7,gy:3.4},
   {gx:5.4,gy:3.25},{gx:6.1,gy:3.4},{gx:6.8,gy:3.25},
 ];
-const EXIT_POS   = {gx:8.2, gy:6.0};
+const EXIT_POS   = {gx:5.0, gy:7.4}; // exit through right door
 const VAULT_POS  = {gx:7.4, gy:2.3};
 const MGR_POS    = {gx:1.6, gy:2.4};
 
@@ -170,9 +190,11 @@ export default function BankingEmpire() {
       return;
     }
 
-    // ── CUSTOMER: greet to calm them ─────────────────────────────────────────
+    // ── CUSTOMER: greet to calm them (one greet per customer) ────────────────
     if (hit.state !== "queued" && hit.state !== "waiting") return;
+    if (hit.clicked) return;
     greetCdRef.current = now + 400;
+    hit.clicked     = true;
     hit.frustration = Math.max(0, (hit.frustration || 0) - 0.45);
     hit.baseAnger   = Math.max(0, (hit.baseAnger   || 0) - 0.15);
     hit.emotion     = hit.frustration > 0.5 ? "neutral" : "happy";

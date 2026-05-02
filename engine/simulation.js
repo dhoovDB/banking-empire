@@ -34,7 +34,7 @@ export function createCustomer(id, queuePos, role = "customer") {
   return {
     id,
     role,
-    gx:          4.0 + (randomFloat() - 0.5) * 0.4,
+    gx:          2.8 + (randomFloat() - 0.5) * 0.2, // enter through left door (gx≈3)
     gy:          7.4,
     state:       "entering",
     emotion:     defaults?.entryEmotion || "neutral",
@@ -76,7 +76,10 @@ export function evaluateCharacter(char, simState, policy) {
       if (caught) return { type: "ROBBER_CAUGHT", charId: char.id };
       return { type: "ROBBER_PROGRESS", charId: char.id };
     }
-    if (char.state === "leaving") return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.050 };
+    if (char.state === "leaving") {
+      if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
+      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.050 };
+    }
   }
 
   // Inspector
@@ -90,7 +93,10 @@ export function evaluateCharacter(char, simState, policy) {
       if (char.progress >= 1) return { type: "INSPECTOR_DONE", charId: char.id };
       return { type: "INSPECTOR_PROGRESS", charId: char.id };
     }
-    if (char.state === "leaving") return { type: "MOVE_TO_EXIT", charId: char.id };
+    if (char.state === "leaving") {
+      if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
+      return { type: "MOVE_TO_EXIT", charId: char.id };
+    }
   }
 
   // Customer
@@ -133,9 +139,11 @@ export function evaluateCharacter(char, simState, policy) {
     return { type: "SERVICE_PROGRESS", charId: char.id };
   }
 
-  if (char.state === "leaving" || char.state === "fleeing")
+  if (char.state === "leaving" || char.state === "fleeing") {
+    if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
     return { type: "MOVE_TO_EXIT", charId: char.id,
              speed: char.state === "fleeing" ? 0.060 : 0.035 };
+  }
 
   return { type: "NOOP", charId: char.id };
 }
@@ -148,23 +156,23 @@ export function applyCommand(command, char, simState) {
     case "MOVE_TO_EXIT":
       return { updatedChar: moveToward(char, simState.exitPos, command.speed || 1.4), stateDeltas: {} };
     case "JOIN_QUEUE":
-      return { updatedChar: { ...char, state: "queued", progress: 0 }, stateDeltas: {} };
+      return { updatedChar: { ...char, state: "queued", progress: 0, isMoving: false }, stateDeltas: {} };
     case "UPDATE_FRUSTRATION":
-      return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, progress: char.progress + 0.003 }, stateDeltas: {} };
+      return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, progress: char.progress + 0.003, isMoving: false }, stateDeltas: {} };
     case "WALKOUT":
-      return { updatedChar: { ...char, state: "fleeing", emotion: "angry" }, stateDeltas: { walkouts: simState.walkouts + 1 } };
+      return { updatedChar: { ...char, state: "fleeing", emotion: "angry", isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
     case "FLEE":
-      return { updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300 }, stateDeltas: { walkouts: simState.walkouts + 1 } };
+      return { updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300, isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
     case "START_SERVICE":
-      return { updatedChar: { ...char, state: "served", progress: 0, emotion: "happy" }, stateDeltas: { activeTellers: new Set([...simState.activeTellers, command.tellerIndex]) } };
+      return { updatedChar: { ...char, state: "served", progress: 0, emotion: "happy", isMoving: false }, stateDeltas: { activeTellers: new Set([...simState.activeTellers, command.tellerIndex]) } };
     case "COMPLETE_SERVICE":
-      return { updatedChar: { ...char, state: "leaving", emotion: "happy" }, stateDeltas: { served: simState.served + 1, deposited: simState.deposited + char.deposit, loans: command.hasLoan ? simState.loans + 1 : simState.loans, whaleServed: command.isWhale ? true : simState.whaleServed } };
+      return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { served: simState.served + 1, deposited: simState.deposited + char.deposit, loans: command.hasLoan ? simState.loans + 1 : simState.loans, whaleServed: command.isWhale ? true : simState.whaleServed } };
     case "SERVICE_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.007 }, stateDeltas: {} };
+      return { updatedChar: { ...char, progress: char.progress + 0.007, isMoving: false }, stateDeltas: {} };
     case "ROBBER_START_VAULT":
-      return { updatedChar: { ...char, state: "robbing", progress: 0 }, stateDeltas: { vaultOpen: true } };
+      return { updatedChar: { ...char, state: "robbing", progress: 0, isMoving: false }, stateDeltas: { vaultOpen: true } };
     case "ROBBER_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.005 }, stateDeltas: {} };
+      return { updatedChar: { ...char, progress: char.progress + 0.005, isMoving: false }, stateDeltas: {} };
     case "ROBBER_ESCAPE": {
       const factor = typeof char.lossFactor === "number" ? char.lossFactor : 1;
       const loss = Math.round((BRANCH_EVENTS.robbery.resolution.baseLoss * factor) / (simState.vaultLevel || 1));
@@ -173,11 +181,13 @@ export function applyCommand(command, char, simState) {
     case "ROBBER_CAUGHT":
       return { updatedChar: { ...char, state: "leaving", emotion: "worried" }, stateDeltas: { robberCaught: true, vaultOpen: false, activeEvent: null } };
     case "INSPECTOR_START":
-      return { updatedChar: { ...char, state: "inspecting", progress: 0 }, stateDeltas: {} };
+      return { updatedChar: { ...char, state: "inspecting", progress: 0, isMoving: false }, stateDeltas: {} };
     case "INSPECTOR_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.003 }, stateDeltas: {} };
+      return { updatedChar: { ...char, progress: char.progress + 0.003, isMoving: false }, stateDeltas: {} };
     case "INSPECTOR_DONE":
-      return { updatedChar: { ...char, state: "leaving", emotion: "happy" }, stateDeltas: { inspectionDone: true, activeEvent: null } };
+      return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { inspectionDone: true, activeEvent: null } };
+    case "EXIT":
+      return { updatedChar: { ...char, state: "exited" }, stateDeltas: {} };
     default:
       return { updatedChar: char, stateDeltas: {} };
   }
@@ -202,16 +212,19 @@ export function resolveEvent(type, simState) {
   const stateDeltas  = { activeEvent: type };
 
   if (type === "robbery") {
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 4.0, gy: 7.6, bubble: "FREEZE!", bubbleTimer: 2400 });
+    // Robber enters right door — sneaking in while customers use the left
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 5.2, gy: 7.6, bubble: "FREEZE!", bubbleTimer: 2400 });
   }
   if (type === "inspection") {
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "inspector"), gx: 4.0, gy: 7.5, bubble: "Inspection.", bubbleTimer: 2200 });
+    // Inspector enters through the left door
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "inspector"), gx: 2.8, gy: 7.5, bubble: "Inspection.", bubbleTimer: 2200 });
   }
   if (type === "rush") {
     stateDeltas.pendingRushSpawns = 8;
   }
   if (type === "whale") {
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "whale"), gx: 4.0, gy: 7.5, bubble: "I'd like a word.", bubbleTimer: 2400, queuePos: 0 });
+    // VIP arrives through the right door
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "whale"), gx: 5.2, gy: 7.5, bubble: "I'd like a word.", bubbleTimer: 2400, queuePos: 0 });
   }
 
   return { spawnedChars, stateDeltas };

@@ -83,8 +83,8 @@ function drawFloor(ctx, gx, gy, color) {
   ctx.strokeStyle = PAL.floorLine; ctx.lineWidth = 0.5; ctx.stroke();
 }
 
-function drawWall(ctx, gx, gy, side) {
-  const { x, y } = toIso(gx, gy); const wh = 78;
+function drawWall(ctx, gx, gy, side, wh = 78) {
+  const { x, y } = toIso(gx, gy);
   ctx.fillStyle = side === "left" ? PAL.wallL : PAL.wallR;
   ctx.beginPath();
   if (side === "left") {
@@ -166,56 +166,88 @@ function drawEntrance(ctx) {
   });
 }
 
-// ─── TELLER COUNTER — sized to actual teller count ──────────────────────────
+// ─── TELLER COUNTER — proper isometric box sitting on the floor grid ─────────
 function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   if (numTellers <= 0) return;
-  // Span only the active windows: gx 3.3 .. 3.3 + (n-1)*0.75
-  const startGx = 3.3;
-  const endGx   = 3.3 + Math.max(0, numTellers - 1) * 0.75;
-  const ds = toIso(startGx - 0.4, 3.7);
-  const de = toIso(endGx   + 0.4, 3.4);
-  const left  = ds.x - 18;
-  const right = de.x + 18;
-  const w  = right - left;
-  const top = Math.min(ds.y, de.y) + 2;
-  const h  = 10;
 
-  // Shadow
-  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  const startGx = 3.0;
+  const endGx   = startGx + (numTellers - 1) * 0.75 + 0.5;
+  const gyFront = 3.6;  // front edge (customer-facing)
+  const gyBack  = 3.0;  // back edge (teller-side)
+  const faceH   = 28;   // pixel height of the counter face
+
+  // Four iso corners of the counter top surface
+  const bl = toIso(startGx, gyFront); // front-left
+  const br = toIso(endGx,   gyFront); // front-right
+  const tr = toIso(endGx,   gyBack);  // back-right
+  const tl = toIso(startGx, gyBack);  // back-left
+
+  // Drop shadow
+  ctx.fillStyle = "rgba(0,0,0,0.20)";
   ctx.beginPath();
-  ctx.ellipse(left + w/2, top + h + 5, w*0.45, 4, 0, 0, Math.PI*2);
+  ctx.ellipse((bl.x+br.x)/2, br.y + faceH + 3, (br.x-bl.x)*0.48, 5, 0, 0, Math.PI*2);
   ctx.fill();
-  // Walnut body
-  const grad = ctx.createLinearGradient(0, top-4, 0, top+h);
-  grad.addColorStop(0, PAL.walnutHi);
-  grad.addColorStop(1, PAL.walnut);
-  ctx.fillStyle = grad;
-  ctx.beginPath(); ctx.roundRect(left, top, w, h, 3); ctx.fill();
-  // Stone top edge
-  ctx.fillStyle = "#1f1a16";
-  ctx.beginPath(); ctx.roundRect(left, top - 3, w, 4, 2); ctx.fill();
-  // Brass rail
-  ctx.fillStyle = PAL.brass;
-  ctx.fillRect(left + 2, top + 1, w - 4, 1.2);
-  ctx.fillStyle = PAL.brassDk;
-  ctx.fillRect(left + 2, top + 2.2, w - 4, 0.6);
 
-  // Per-teller number plaque (no glass divider — was obscuring the teller)
+  // Front face — walnut, slightly darker than top
+  const frontGrad = ctx.createLinearGradient(0, bl.y, 0, bl.y + faceH);
+  frontGrad.addColorStop(0, PAL.walnutLt);
+  frontGrad.addColorStop(1, PAL.walnut);
+  ctx.fillStyle = frontGrad;
+  ctx.beginPath();
+  ctx.moveTo(bl.x, bl.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(br.x, br.y + faceH);
+  ctx.lineTo(bl.x, bl.y + faceH);
+  ctx.closePath();
+  ctx.fill();
+
+  // Top surface — iso diamond, lighter walnut
+  const topGrad = ctx.createLinearGradient(tl.x, tl.y, bl.x, bl.y);
+  topGrad.addColorStop(0, PAL.walnut);
+  topGrad.addColorStop(1, PAL.walnutHi);
+  ctx.fillStyle = topGrad;
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y);
+  ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Marble counter-top strip along the front edge
+  ctx.fillStyle = "#d8d0c0";
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y - 2); ctx.lineTo(tr.x, tr.y - 2);
+  ctx.lineTo(br.x, br.y - 2); ctx.lineTo(bl.x, bl.y - 2);
+  ctx.lineTo(bl.x, bl.y);     ctx.lineTo(br.x, br.y);
+  ctx.lineTo(tr.x, tr.y);     ctx.lineTo(tl.x, tl.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Brass rail along the front edge
+  ctx.fillStyle = PAL.brass;
+  ctx.beginPath();
+  ctx.moveTo(bl.x + 2, bl.y - 1); ctx.lineTo(br.x - 2, br.y - 1);
+  ctx.lineTo(br.x - 2, br.y + 2); ctx.lineTo(bl.x + 2, bl.y + 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Per-teller window plaque on the front face
   for (let i = 0; i < numTellers; i++) {
-    const { x, y } = toIso(3.3 + i*0.75, 3.55);
+    const px = toIso(startGx + 0.25 + i * 0.75, gyFront);
     const active = activeTellers.has(i);
     if (active) {
-      ctx.fillStyle = "rgba(245,200,120,0.20)";
+      ctx.fillStyle = "rgba(245,200,120,0.22)";
       ctx.beginPath();
-      ctx.ellipse(x, y+8, 22, 6, 0, 0, Math.PI*2);
+      ctx.ellipse(px.x, px.y + faceH * 0.55, 18, 5, 0, 0, Math.PI*2);
       ctx.fill();
     }
     ctx.fillStyle = "#1a140e";
-    ctx.fillRect(x - 6, y + 2, 12, 4.5);
+    ctx.fillRect(px.x - 5, px.y + 7, 10, 5);
     ctx.fillStyle = PAL.brass;
-    ctx.font = "bold 5.5px 'Nunito',sans-serif";
+    ctx.font = "bold 5px 'Nunito',sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(String(i+1), x, y + 5.7);
+    ctx.fillText(String(i + 1), px.x, px.y + 11);
   }
 }
 
@@ -637,8 +669,10 @@ export function renderFrame(ctx, renderState, ts) {
   ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
   TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
-  TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right"));
-  TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left"));
+  // gy=1 (security row) gets full-height back wall; gy=2 (manager/loan officer) gets a shorter
+  // divider so the loan officer is visible over it.
+  TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right", t.gy===2 ? 36 : 78));
+  TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left",  t.gy<=2  ? 36 : 78));
 
   // Subtle queue-line marker (brass dots)
   queueSlots.slice(0,8).forEach(({gx,gy})=>{
@@ -689,23 +723,3 @@ export function renderFrame(ctx, renderState, ts) {
   drawEventBorder(ctx, activeEvent);
 }
 
-// ─── HIT TESTING — for player interaction ────────────────────────────────────
-// Returns the topmost interactive char near (cssX, cssY): queued/waiting customers,
-// or whale / robber that are currently within their interaction window.
-export function pickCharacter(chars, cssX, cssY) {
-  const candidates = [...chars]
-    .filter(c => {
-      if (c.state === "exited") return false;
-      if (c.role === "customer") return true;
-      if ((c.role === "whale" || c.role === "robber") && c.interactable) return true;
-      return false;
-    })
-    .sort((a,b) => (b.gx + b.gy) - (a.gx + a.gy)); // front-most first
-  for (const c of candidates) {
-    const { x, y } = toIso(c.gx, c.gy);
-    const dx = cssX - x;
-    const dy = cssY - (y - 6);
-    if (dx*dx/(16*16) + dy*dy/(24*24) <= 1) return c;
-  }
-  return null;
-}
