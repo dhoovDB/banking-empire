@@ -64,6 +64,36 @@ config/   →   engine/   →   renderer/   →   ui/
 `BankingEmpire.jsx` is the one exception — it sits at the root and imports from all four layers
 because it owns all React state.
 
+### Separation of concerns
+
+Four layers. Each has one job.
+
+| Layer | Responsibility |
+|---|---|
+| `config/` | Game rules as data. Rebalancing means editing config, never the engine. |
+| `engine/` | Pure functions. No React. No side effects. |
+| `renderer/canvas.js` | Receives state and draws. No calculations. |
+| `BankingEmpire.jsx` | Only smart component. Owns state, passes callbacks down. |
+
+### The test
+
+Adding a new event type = one entry in `config/events.js`. The engine and UI render it automatically.
+
+Adding a new KPI = one entry in `config/economy.js`. The UI renders it automatically.
+
+If adding a feature requires touching more than one layer, stop and check whether the logic belongs where you put it.
+
+### What to protect when using AI tools
+
+Lovable and Claude Code will sometimes collapse these layers into a single component. Do not accept
+those changes. Extract visual improvements only and apply them to the existing structure.
+
+Specific things to watch for:
+- Calculations appearing inside `canvas.js` (hit-testing, value derivation) → move upstream
+- State or `useState` appearing in `ui/` components → belongs in `BankingEmpire.jsx`
+- Logic or arrow-function values appearing in `config/` files → belongs in `engine/`
+- Engine functions that call `setState` or read React refs → remove the React dependency
+
 ### Architecture principles
 
 **Config is data only.** Nothing in `config/` should contain functions, logic, or arrow functions
