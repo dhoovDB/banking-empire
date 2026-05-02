@@ -13,7 +13,7 @@ import {
   calculateEraProgressDelta, createCustomer, createStaffMember,
   randomFloat, randomInt,
 } from "./engine/simulation.js";
-import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";
+import { renderFrame, CANVAS_W, CANVAS_H, toIso, pickCharacter } from "./renderer/canvas.js";
 import { spawnCoins }                              from "./renderer/particles.js";
 import SetupScreen                                 from "./ui/SetupScreen.jsx";
 import SimScreen                                   from "./ui/SimScreen.jsx";
@@ -67,6 +67,10 @@ export default function BankingEmpire() {
   const simRef     = useRef(null);
   const simState   = useRef(null);
   const particles  = useRef([]);
+  // Player interaction state — refs so we don't re-render every mouse move
+  const hoverRef   = useRef(null);
+  const greetCdRef = useRef(0);
+  const [greets, setGreets] = useState(0);
 
   // ── RENDER LOOP ──────────────────────────────────────────────────────────────
   // Never calls setState — pure canvas drawing.
@@ -76,6 +80,11 @@ export default function BankingEmpire() {
     const ctx = canvas.getContext("2d");
     const s   = simState.current;
     if (!s) return;
+
+    // Resolve hovered char from latest sim state
+    const hovered = hoverRef.current
+      ? s.chars.find(c => c.id === hoverRef.current) || null
+      : null;
 
     renderFrame(ctx, {
       chars:         s.chars,
@@ -89,14 +98,93 @@ export default function BankingEmpire() {
         deposited:   s.deposited,
         walkouts:    s.walkouts,
         queueLength: s.chars.filter(c => c.state === "queued").length,
+        greets:      s.greets || 0,
       },
       queueSlots:   QUEUE_SLOTS,
       tellerSlots:  TELLER_SLOTS,
       tellerRoster,
+      hoveredChar:  hovered,
     }, ts);
 
     animRef.current = requestAnimationFrame(renderLoop);
   }, [staff, tellerRoster]);
+
+  // ── CANVAS POINTER HANDLERS ─────────────────────────────────────────────────
+  const getCanvasPoint = (evt) => {
+    const c = canvasRef.current;
+    if (!c) return null;
+    const rect = c.getBoundingClientRect();
+    const sx = (evt.clientX - rect.left) * (CANVAS_W / rect.width);
+    const sy = (evt.clientY - rect.top)  * (CANVAS_H / rect.height);
+    return { x: sx, y: sy };
+  };
+
+  const handleCanvasMove = useCallback((evt) => {
+    const s = simState.current; if (!s) return;
+    const p = getCanvasPoint(evt); if (!p) return;
+    const hit = pickCharacter(s.chars, p.x, p.y);
+    hoverRef.current = hit ? hit.id : null;
+    const c = canvasRef.current;
+    if (c) c.style.cursor = hit ? "pointer" : "default";
+  }, []);
+
+  const handleCanvasLeave = useCallback(() => {
+    hoverRef.current = null;
+    const c = canvasRef.current; if (c) c.style.cursor = "default";
+  }, []);
+
+  const handleCanvasClick = useCallback((evt) => {
+    const s = simState.current; if (!s) return;
+    const now = Date.now();
+    if (now < greetCdRef.current) return;          // 400ms cooldown
+    const p = getCanvasPoint(evt); if (!p) return;
+    const hit = pickCharacter(s.chars, p.x, p.y);
+    if (!hit) return;
+
+    // ── WHALE: greet for a deposit bonus ─────────────────────────────────────
+    if (hit.role === "whale") {
+      if (!hit.interactable || now > hit.interactDeadline || hit.greeted) return;
+      greetCdRef.current = now + 400;
+      hit.greeted      = true;
+      hit.interactable = false;
+      hit.deposit      = Math.round(hit.deposit * 1.4);
+      hit.emotion      = "happy";
+      hit.bubble       = "Charmed, thank you.";
+      hit.bubbleTimer  = 1800;
+      const { x, y } = toIso(hit.gx, hit.gy);
+      particles.current.push(...spawnCoins(x, y - 14, 3));
+      setSimLog(log => [...log, `VIP greeted — +40% deposit`]);
+      return;
+    }
+
+    // ── ROBBER: dispatch security to reduce theft ────────────────────────────
+    if (hit.role === "robber") {
+      if (!hit.interactable || now > hit.interactDeadline || hit.securityDispatched) return;
+      greetCdRef.current = now + 400;
+      hit.securityDispatched = true;
+      hit.interactable       = false;
+      hit.lossFactor         = 0.4; // 60% reduction in theft
+      hit.bubble             = "Hands up!";
+      hit.bubbleTimer        = 1800;
+      setSimLog(log => [...log, `Security dispatched — robbery loss reduced`]);
+      return;
+    }
+
+    // ── CUSTOMER: greet to calm them ─────────────────────────────────────────
+    if (hit.state !== "queued" && hit.state !== "waiting") return;
+    greetCdRef.current = now + 400;
+    hit.frustration = Math.max(0, (hit.frustration || 0) - 0.45);
+    hit.baseAnger   = Math.max(0, (hit.baseAnger   || 0) - 0.15);
+    hit.emotion     = hit.frustration > 0.5 ? "neutral" : "happy";
+    hit.bubble      = ["Thanks!", "Appreciated.", "Oh, lovely!", "Cheers!"][Math.floor(Math.random()*4)];
+    hit.bubbleTimer = 1600;
+
+    s.greets = (s.greets || 0) + 1;
+    setGreets(s.greets);
+    const { x, y } = toIso(hit.gx, hit.gy);
+    particles.current.push(...spawnCoins(x, y - 14, 1));
+  }, []);
+
 
   useEffect(() => {
     if (phase === "simulating") {
@@ -136,9 +224,13 @@ export default function BankingEmpire() {
       managerPos:     MGR_POS,
       pendingRushSpawns: 0,
       setupCost:         calculateOneTimeCosts(staff, fac, committed),
+      greets:            0,
     };
 
     particles.current = [];
+    hoverRef.current  = null;
+    greetCdRef.current = 0;
+    setGreets(0);
     setSimLog([]);
     setActiveEvt(null);
     setDayProg(0);
@@ -199,8 +291,12 @@ export default function BankingEmpire() {
       }
       s.chars = newChars;
 
-      // Bubble ticks
+      // Bubble ticks + interaction-window expiry
+      const nowTs = Date.now();
       s.chars.forEach(c => {
+        if (c.interactable && c.interactDeadline && nowTs > c.interactDeadline) {
+          c.interactable = false;
+        }
         if (!c.bubble && randomFloat() < 0.003) {
           if (c.state === "served") {
             c.bubble = `+$${c.deposit.toLocaleString()}`; c.bubbleTimer = 1900;
@@ -221,7 +317,16 @@ export default function BankingEmpire() {
   function fireEvent(type, s) {
     const { spawnedChars, stateDeltas } = resolveEvent(type, s);
     Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
-    spawnedChars.forEach(c => { s.chars.push(c); s.nextId++; });
+    const now = Date.now();
+    spawnedChars.forEach(c => {
+      // Tag event chars with a click-window
+      if (c.role === "whale") {
+        c.interactable = true; c.interactWindow = 6000; c.interactDeadline = now + 6000;
+      } else if (c.role === "robber") {
+        c.interactable = true; c.interactWindow = 4000; c.interactDeadline = now + 4000;
+      }
+      s.chars.push(c); s.nextId++;
+    });
 
     const evtDef = EVT_DISPLAY[type];
     if (evtDef) setActiveEvt(evtDef);
@@ -314,7 +419,10 @@ export default function BankingEmpire() {
 
   if (phase === "simulating") return (
     <SimScreen canvasRef={canvasRef} activeEvent={activeEvt} simLog={simLog}
-      fin={fin} staff={staff} dayProgress={dayProg} />
+      fin={fin} staff={staff} dayProgress={dayProg} greets={greets}
+      onCanvasMove={handleCanvasMove}
+      onCanvasLeave={handleCanvasLeave}
+      onCanvasClick={handleCanvasClick} />
   );
 
   if (phase === "report" && report) return (

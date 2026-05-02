@@ -70,7 +70,9 @@ export function evaluateCharacter(char, simState, policy) {
     }
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
-      const caught = simState.securityCount > 0 && randomFloat() < 0.008;
+      const baseChance = simState.securityCount > 0 ? 0.008 : 0;
+      const dispatchedChance = char.securityDispatched ? 0.05 : 0;
+      const caught = randomFloat() < (baseChance + dispatchedChance);
       if (caught) return { type: "ROBBER_CAUGHT", charId: char.id };
       return { type: "ROBBER_PROGRESS", charId: char.id };
     }
@@ -164,7 +166,8 @@ export function applyCommand(command, char, simState) {
     case "ROBBER_PROGRESS":
       return { updatedChar: { ...char, progress: char.progress + 0.005 }, stateDeltas: {} };
     case "ROBBER_ESCAPE": {
-      const loss = Math.round(BRANCH_EVENTS.robbery.resolution.baseLoss / (simState.vaultLevel || 1));
+      const factor = typeof char.lossFactor === "number" ? char.lossFactor : 1;
+      const loss = Math.round((BRANCH_EVENTS.robbery.resolution.baseLoss * factor) / (simState.vaultLevel || 1));
       return { updatedChar: { ...char, state: "leaving" }, stateDeltas: { robberyLoss: simState.robberyLoss + loss, vaultOpen: false, activeEvent: null } };
     }
     case "ROBBER_CAUGHT":

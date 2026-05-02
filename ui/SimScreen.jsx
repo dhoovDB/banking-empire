@@ -31,7 +31,10 @@ function KPIRow({ label, kpiKey, value, display }) {
   );
 }
 
-export default function SimScreen({ canvasRef, activeEvent, simLog, fin, staff, dayProgress }) {
+export default function SimScreen({
+  canvasRef, activeEvent, simLog, fin, staff, dayProgress,
+  greets = 0, onCanvasMove, onCanvasLeave, onCanvasClick,
+}) {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", fontFamily: "'Nunito', sans-serif", padding: "12px 16px" }}>
 
@@ -48,6 +51,21 @@ export default function SimScreen({ canvasRef, activeEvent, simLog, fin, staff, 
           }} />
         </div>
         <span style={{ fontSize: 11, color: C.dim }}>{Math.round(dayProgress * 100)}%</span>
+      </div>
+
+      {/* Player tip / interaction hint */}
+      <div style={{
+        width: CANVAS_W, marginBottom: 8, padding: "6px 12px", borderRadius: 6,
+        background: "rgba(184,145,80,0.10)", border: "1px solid rgba(184,145,80,0.25)",
+        color: C.text, fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span>
+          <span style={{ color: C.gold, fontWeight: 700 }}>Tip:</span>{" "}
+          Click waiting customers to <em style={{ color: C.gold }}>greet</em> them.
+          During events, click the <em style={{ color: "#f5c842" }}>VIP</em> for a deposit bonus,
+          or the <em style={{ color: C.danger }}>robber</em> to send security — before their timer runs out.
+        </span>
+        <span style={{ color: C.gold, fontWeight: 700 }}>Greets: {greets}</span>
       </div>
 
       {/* Event alert */}
@@ -72,6 +90,9 @@ export default function SimScreen({ canvasRef, activeEvent, simLog, fin, staff, 
       {/* Canvas + sidebar */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H}
+          onMouseMove={onCanvasMove}
+          onMouseLeave={onCanvasLeave}
+          onClick={onCanvasClick}
           style={{ display: "block", borderRadius: 6, border: `1px solid ${C.border}` }} />
 
         <div style={{ width: 180, flexShrink: 0 }}>
