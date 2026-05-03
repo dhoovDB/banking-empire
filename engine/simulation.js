@@ -57,7 +57,7 @@ export function createCustomer(id, queuePos, role = "customer") {
 
 // ─── CHARACTER EVALUATION (pure) ─────────────────────────────────────────────
 export function evaluateCharacter(char, simState, policy) {
-  const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos, vaultPos, managerPos } = simState;
+  const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos } = simState;
   const beh     = CUSTOMER_BEHAVIOUR;
   const impacts = POLICY_IMPACTS;
 
@@ -66,7 +66,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (char.state === "entering") {
       return isNear(char, vaultPos)
         ? { type: "ROBBER_START_VAULT", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.038 };
+        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.057 };
     }
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
@@ -78,20 +78,25 @@ export function evaluateCharacter(char, simState, policy) {
     }
     if (char.state === "leaving") {
       if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.050 };
+      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.075 };
     }
   }
 
   // Inspector
   if (char.role === "inspector") {
     if (char.state === "entering") {
-      return isNear(char, managerPos)
+      const dest = simState.managerPos;
+      return isNear(char, dest)
         ? { type: "INSPECTOR_START", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: managerPos, speed: 0.028 };
+        : { type: "MOVE", charId: char.id, target: dest, speed: 0.042 };
     }
     if (char.state === "inspecting") {
-      if (char.progress >= 1) return { type: "INSPECTOR_DONE", charId: char.id };
-      return { type: "INSPECTOR_PROGRESS", charId: char.id };
+      const wanders = char.wanderTargets || [];
+      const idx     = char.wanderIdx    || 0;
+      if (idx >= wanders.length) return { type: "INSPECTOR_DONE", charId: char.id };
+      const target = wanders[idx].pos;
+      if (isNear(char, target)) return { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id };
+      return { type: "MOVE", charId: char.id, target, speed: 0.042 };
     }
     if (char.state === "leaving") {
       if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
@@ -104,31 +109,34 @@ export function evaluateCharacter(char, simState, policy) {
 
   if (char.state === "entering") {
     const slot = queueSlots[Math.min(char.queuePos, queueSlots.length - 1)];
-    return isNear(char, slot)
-      ? { type: "JOIN_QUEUE", charId: char.id }
-      : { type: "MOVE", charId: char.id, target: slot, speed: 0.040 };
+    if (!isNear(char, slot)) return { type: "MOVE", charId: char.id, target: slot, speed: 0.060 };
+    const free = findFreeSlot(char, simState);
+    return free
+      ? { type: "CLAIM_SLOT", charId: char.id, ...free }
+      : { type: "JOIN_WAIT", charId: char.id };
   }
 
-  if (char.state === "queued") {
+  if (char.state === "waiting") {
     const newFrust = Math.min(1, char.frustration + frustDelta + (char.baseAnger || 0) * 0.002);
-
     if (activeEvent === "robbery" && randomFloat() < 0.004)
       return { type: "FLEE", charId: char.id, reason: "robbery" };
-
     if (newFrust > beh.walkoutThreshold && randomFloat() < beh.walkoutProbability)
       return { type: "WALKOUT", charId: char.id };
-
-    if (char.progress > 0.2 && activeEvent !== "outage") {
-      const ti = char.id % Math.min(numTellers, tellerSlots.length);
-      const slot = tellerSlots[ti];
-      if (isNear(char, slot))
-        return { type: "START_SERVICE", charId: char.id, tellerIndex: ti,
-                 hasLoan: char.loanAmt > 0 && loanOfficers > 0 };
-      return { type: "MOVE", charId: char.id, target: slot };
+    if (activeEvent !== "outage") {
+      const free = findFreeSlot(char, simState);
+      if (free) return { type: "CLAIM_SLOT", charId: char.id, ...free };
     }
-
     return { type: "UPDATE_FRUSTRATION", charId: char.id, newFrust,
              newEmotion: frustEmotion(newFrust, beh) };
+  }
+
+  if (char.state === "advancing") {
+    const target = char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex];
+    if (!target) return { type: "NOOP", charId: char.id };
+    if (isNear(char, target))
+      return { type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
+               hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0) };
+    return { type: "MOVE", charId: char.id, target, speed: 0.042 };
   }
 
   if (char.state === "served") {
@@ -142,7 +150,7 @@ export function evaluateCharacter(char, simState, policy) {
   if (char.state === "leaving" || char.state === "fleeing") {
     if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
     return { type: "MOVE_TO_EXIT", charId: char.id,
-             speed: char.state === "fleeing" ? 0.060 : 0.035 };
+             speed: char.state === "fleeing" ? 0.082 : 0.053 };
   }
 
   return { type: "NOOP", charId: char.id };
@@ -155,18 +163,39 @@ export function applyCommand(command, char, simState) {
       return { updatedChar: moveToward(char, command.target, command.speed), stateDeltas: {} };
     case "MOVE_TO_EXIT":
       return { updatedChar: moveToward(char, simState.exitPos, command.speed || 1.4), stateDeltas: {} };
-    case "JOIN_QUEUE":
-      return { updatedChar: { ...char, state: "queued", progress: 0, isMoving: false }, stateDeltas: {} };
+    case "JOIN_WAIT":
+      return { updatedChar: { ...char, state: "waiting", isMoving: false }, stateDeltas: {} };
+    case "CLAIM_SLOT": {
+      const newOccupied = new Set(simState.occupiedTellerSlots);
+      if (!command.useLoanDesk) newOccupied.add(command.tellerIndex);
+      return {
+        updatedChar: { ...char, state: "advancing", tellerIndex: command.tellerIndex, useLoanDesk: command.useLoanDesk || false, isMoving: true },
+        stateDeltas: { occupiedTellerSlots: newOccupied, loanDeskOccupied: command.useLoanDesk ? true : simState.loanDeskOccupied },
+      };
+    }
     case "UPDATE_FRUSTRATION":
-      return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, progress: char.progress + 0.003, isMoving: false }, stateDeltas: {} };
+      return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, isMoving: false }, stateDeltas: {} };
     case "WALKOUT":
       return { updatedChar: { ...char, state: "fleeing", emotion: "angry", isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
     case "FLEE":
       return { updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300, isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
     case "START_SERVICE":
       return { updatedChar: { ...char, state: "served", progress: 0, emotion: "happy", isMoving: false }, stateDeltas: { activeTellers: new Set([...simState.activeTellers, command.tellerIndex]) } };
-    case "COMPLETE_SERVICE":
-      return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { served: simState.served + 1, deposited: simState.deposited + char.deposit, loans: command.hasLoan ? simState.loans + 1 : simState.loans, whaleServed: command.isWhale ? true : simState.whaleServed } };
+    case "COMPLETE_SERVICE": {
+      const released = new Set(simState.occupiedTellerSlots);
+      if (char.tellerIndex !== undefined && char.tellerIndex >= 0) released.delete(char.tellerIndex);
+      return {
+        updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true },
+        stateDeltas: {
+          served:              simState.served + 1,
+          deposited:           simState.deposited + char.deposit,
+          loans:               command.hasLoan ? simState.loans + 1 : simState.loans,
+          whaleServed:         command.isWhale ? true : simState.whaleServed,
+          occupiedTellerSlots: released,
+          loanDeskOccupied:    char.useLoanDesk ? false : simState.loanDeskOccupied,
+        },
+      };
+    }
     case "SERVICE_PROGRESS":
       return { updatedChar: { ...char, progress: char.progress + 0.007, isMoving: false }, stateDeltas: {} };
     case "ROBBER_START_VAULT":
@@ -181,9 +210,11 @@ export function applyCommand(command, char, simState) {
     case "ROBBER_CAUGHT":
       return { updatedChar: { ...char, state: "leaving", emotion: "worried" }, stateDeltas: { robberCaught: true, vaultOpen: false, activeEvent: null } };
     case "INSPECTOR_START":
-      return { updatedChar: { ...char, state: "inspecting", progress: 0, isMoving: false }, stateDeltas: {} };
-    case "INSPECTOR_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.003, isMoving: false }, stateDeltas: {} };
+      return { updatedChar: { ...char, state: "inspecting", wanderIdx: 0, isMoving: false, bubble: "Are your records in order?", bubbleTimer: 2000 }, stateDeltas: {} };
+    case "INSPECTOR_WANDER_ARRIVE": {
+      const wander = (char.wanderTargets || [])[char.wanderIdx || 0];
+      return { updatedChar: { ...char, wanderIdx: (char.wanderIdx || 0) + 1, isMoving: false, bubble: wander?.bubble || null, bubbleTimer: 2400 }, stateDeltas: {} };
+    }
     case "INSPECTOR_DONE":
       return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { inspectionDone: true, activeEvent: null } };
     case "EXIT":
@@ -216,8 +247,16 @@ export function resolveEvent(type, simState) {
     spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 5.2, gy: 7.6, bubble: "FREEZE!", bubbleTimer: 2400 });
   }
   if (type === "inspection") {
-    // Inspector enters through the left door
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "inspector"), gx: 2.8, gy: 7.5, bubble: "Inspection.", bubbleTimer: 2200 });
+    const wanders = [
+      { pos: simState.tellerSlots[0], bubble: "Is this ledger up to date?" },
+      { pos: simState.vaultPos,       bubble: "Interesting vault setup." },
+    ];
+    spawnedChars.push({
+      ...createCustomer(simState.nextId, 0, "inspector"),
+      gx: 2.8, gy: 7.5,
+      bubble: "Inspection.", bubbleTimer: 2200,
+      wanderTargets: wanders, wanderIdx: 0,
+    });
   }
   if (type === "rush") {
     stateDeltas.pendingRushSpawns = 8;
@@ -253,12 +292,22 @@ export function calculateEraProgressDelta(dayResult, fin) {
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
+function findFreeSlot(char, simState) {
+  const { numTellers, tellerSlots, occupiedTellerSlots, loanDeskOccupied, loanOfficers, loanDeskPos } = simState;
+  if (char.loanAmt > 0 && loanOfficers > 0 && !loanDeskOccupied && loanDeskPos)
+    return { tellerIndex: -1, useLoanDesk: true };
+  for (let i = 0; i < Math.min(numTellers, tellerSlots.length); i++) {
+    if (!occupiedTellerSlots.has(i)) return { tellerIndex: i, useLoanDesk: false };
+  }
+  return null;
+}
+
 function isNear(char, target) {
   const dx = target.gx - char.gx, dy = target.gy - char.gy;
   return Math.sqrt(dx*dx + dy*dy) < 0.09;
 }
 
-function moveToward(char, target, speed = 0.028) {
+function moveToward(char, target, speed = 0.042) {
   const dx = target.gx - char.gx, dy = target.gy - char.gy;
   const d  = Math.sqrt(dx*dx + dy*dy);
   if (d < 0.09) return { ...char, isMoving: false };

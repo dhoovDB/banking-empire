@@ -41,23 +41,17 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       the front door instead of spreading toward tellers. Queue slots may be
       too tightly clustered (gy:5.5–6.1) or the progress > 0.2 service-advance
       threshold kicks in too late. Investigate slot spacing first.
-- [ ] **Customer movement too slow** — customers visibly crawl. Speed values in
-      `evaluateCharacter` were calibrated for ISO_TW=96; with ISO_TW=144 the
-      grid units are larger so the same speed values cover less screen distance
-      per tick. Scale all speed constants proportionally (×1.5) or re-calibrate.
-- [ ] **Customers exit to corner instead of door** — after service, customers
-      walk to EXIT_POS `{gx:8.2, gy:6.0}` which is off-screen at the new tile
-      size. Move EXIT_POS to align with the door openings at gx≈3 or gx≈5, gy≈6.5.
-- [ ] **Inspector walks to corner** — same root cause as customer exit: target
-      position for the inspector character is outside the visible canvas area.
-      Audit all hardcoded target positions in `evaluateCharacter` / `resolveEvent`
-      against the new tile layout.
-- [ ] **Loan officer missing from canvas** — hiring a loan officer has no
-      visible character. Ghost placeholder disappears but no named chibi
-      replaces it. Need a separate loan officer roster drawn at the manager-desk
-      position — same pattern as teller roster.
+- [x] **Customer movement too slow** — scaled all speed constants ×1.5 for ISO_TW=144. (2026-05-02)
+- [x] **Customers exit to corner** — EXIT_POS already corrected by prior Lovable change; confirmed working. (2026-05-02)
+- [x] **Inspector walks to corner** — inspector now wanders to teller desk and vault before leaving; no longer targets off-screen position. (2026-05-02)
+- [x] **Loan officer desk added** — LOAN_DESK_POS at gx:2.5, gy:2.4; loan customers route there separately from teller queue. (2026-05-02)
 - [ ] **Customer spawn visibility** — customers spawn at gy:7.4 (below entrance).
       If doorway crossing reads late, try gy:6.6 so the entry moment is explicit.
+
+### 1b. Queue behaviour (completed this session)
+
+- [x] **Waiting state** — customers hold at queue slot until a teller or loan desk slot is free. Direct-to-desk if slot open on entry. Removes the old progress-timer advance trigger. (2026-05-02)
+- [x] **Click system refactored** — `clickedCharIds` Set enforces one interaction per character. Role-based routing: whale (1.2× deposit), robber (dispatch security), inspector (distract → 50% fine), customer (calm frustration). (2026-05-02)
 
 ### 2. Setup screen clarity
 *Problem: players don't understand what they're buying.*
@@ -99,6 +93,12 @@ and doesn't enforce consequences for bad decisions.*
 *Do these after v1 ships. Improves depth and replayability.*
 
 ### Gameplay loop improvements
+
+- [ ] **Loan officer roster on canvas** — when loan officers > 0, draw a named chibi at the loan desk (same pattern as teller roster). Currently the ghost disappears but no live character replaces it.
+
+- [ ] **Inspector click feedback in UI** — when inspector is distracted, show a banner or log entry confirming the fine amount was reduced (e.g. "Fine reduced to $1,250"). Player currently has to wait for the report screen to see the effect.
+
+- [ ] **Robber click requires security hired** — currently clicking a robber works even with security = 0 (no security staff to dispatch). Guard the interaction: if `securityCount === 0`, show a "No security on duty" bubble instead.
 
 - [ ] **Proactive NIM tutorial** — era 1 quarter 1 should explain NIM before
       the player's first rate decision. Currently players discover it reactively.
@@ -276,6 +276,12 @@ They display as locked teasers, not active options.
 - [x] Initial Vitest unit tests for engine/financials.js (2026-04-28)
 - [x] NPL receivership: fixed consecutive-quarters check in checkLossConditions; 9 tests added (2026-04-30)
 - [x] FDIC seizure confirmed working end-to-end; insolvency test added (2026-04-30)
+- [x] Character movement speed scaled ×1.5 for ISO_TW=144; CLAUDE.md calibrated values updated (2026-05-02)
+- [x] Waiting-state queue machine: customers hold at slot until teller/loan desk free; direct-to-desk if slot open on entry (2026-05-02)
+- [x] Loan officer desk (LOAN_DESK_POS gx:2.5, gy:2.4); loan customers routed there separately (2026-05-02)
+- [x] Inspector wander: walks manager → teller desk → vault with inspection bubbles; click to distract → 50% fine (2026-05-02)
+- [x] Click system refactor: clickedCharIds enforces one click per character; whale 1.2×, robber dispatch, inspector distract (2026-05-02)
+- [x] simulation.test.js: 17 tests covering one-click-max, whale boost, inspector fine, waiting state, loan desk routing (2026-05-02)
 
 ---
 

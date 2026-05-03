@@ -18,12 +18,14 @@ import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";
 // Hit-test: returns the topmost clickable character near pixel (cssX, cssY).
 // Lives here (not in canvas.js) because it's a calculation, not a draw call.
 // Customers with `clicked: true` are excluded — one greet per customer.
-function pickCharacter(chars, cssX, cssY) {
+function pickCharacter(chars, cssX, cssY, clickedCharIds = new Set()) {
   const candidates = [...chars]
     .filter(c => {
       if (c.state === "exited") return false;
-      if (c.role === "customer") return !c.clicked;
-      if ((c.role === "whale" || c.role === "robber") && c.interactable) return true;
+      if (clickedCharIds.has(c.id)) return false;
+      if (c.role === "inspector") return c.state === "inspecting";
+      if (c.role === "whale" || c.role === "robber") return !!c.interactable;
+      if (c.role === "customer") return c.state === "waiting" || c.state === "queued";
       return false;
     })
     .sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy));
@@ -49,9 +51,10 @@ const TELLER_SLOTS = [
   {gx:3.3,gy:3.4},{gx:4.0,gy:3.25},{gx:4.7,gy:3.4},
   {gx:5.4,gy:3.25},{gx:6.1,gy:3.4},{gx:6.8,gy:3.25},
 ];
-const EXIT_POS   = {gx:5.0, gy:7.4}; // exit through right door
-const VAULT_POS  = {gx:7.4, gy:2.3};
-const MGR_POS    = {gx:1.6, gy:2.4};
+const EXIT_POS      = {gx:5.0, gy:7.4}; // exit through right door
+const VAULT_POS     = {gx:7.4, gy:2.3};
+const MGR_POS       = {gx:1.6, gy:2.4};
+const LOAN_DESK_POS = {gx:2.5, gy:2.4}; // loan officer desk — right of manager
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
@@ -117,11 +120,12 @@ export default function BankingEmpire() {
         served:      s.served,
         deposited:   s.deposited,
         walkouts:    s.walkouts,
-        queueLength: s.chars.filter(c => c.state === "queued").length,
+        queueLength: s.chars.filter(c => c.state === "waiting").length,
         greets:      s.greets || 0,
       },
       queueSlots:   QUEUE_SLOTS,
       tellerSlots:  TELLER_SLOTS,
+      loanDeskPos:  LOAN_DESK_POS,
       tellerRoster,
       hoveredChar:  hovered,
     }, ts);
@@ -142,7 +146,7 @@ export default function BankingEmpire() {
   const handleCanvasMove = useCallback((evt) => {
     const s = simState.current; if (!s) return;
     const p = getCanvasPoint(evt); if (!p) return;
-    const hit = pickCharacter(s.chars, p.x, p.y);
+    const hit = pickCharacter(s.chars, p.x, p.y, s.clickedCharIds);
     hoverRef.current = hit ? hit.id : null;
     const c = canvasRef.current;
     if (c) c.style.cursor = hit ? "pointer" : "default";
@@ -156,51 +160,56 @@ export default function BankingEmpire() {
   const handleCanvasClick = useCallback((evt) => {
     const s = simState.current; if (!s) return;
     const now = Date.now();
-    if (now < greetCdRef.current) return;          // 400ms cooldown
+    if (now < greetCdRef.current) return;
     const p = getCanvasPoint(evt); if (!p) return;
-    const hit = pickCharacter(s.chars, p.x, p.y);
+    const hit = pickCharacter(s.chars, p.x, p.y, s.clickedCharIds);
     if (!hit) return;
 
-    // ── WHALE: greet for a deposit bonus ─────────────────────────────────────
+    greetCdRef.current = now + 400;
+    s.clickedCharIds.add(hit.id);
+
+    // ── WHALE: greet for a deposit bonus (1.2×) ──────────────────────────────
     if (hit.role === "whale") {
-      if (!hit.interactable || now > hit.interactDeadline || hit.greeted) return;
-      greetCdRef.current = now + 400;
-      hit.greeted      = true;
       hit.interactable = false;
-      hit.deposit      = Math.round(hit.deposit * 1.4);
+      hit.deposit      = Math.round(hit.deposit * 1.2);
       hit.emotion      = "happy";
       hit.bubble       = "Charmed, thank you.";
       hit.bubbleTimer  = 1800;
       const { x, y } = toIso(hit.gx, hit.gy);
       particles.current.push(...spawnCoins(x, y - 14, 3));
-      setSimLog(log => [...log, `VIP greeted — +40% deposit`]);
+      setSimLog(log => [...log, `VIP greeted — +20% deposit`]);
       return;
     }
 
     // ── ROBBER: dispatch security to reduce theft ────────────────────────────
     if (hit.role === "robber") {
-      if (!hit.interactable || now > hit.interactDeadline || hit.securityDispatched) return;
-      greetCdRef.current = now + 400;
       hit.securityDispatched = true;
       hit.interactable       = false;
-      hit.lossFactor         = 0.4; // 60% reduction in theft
+      hit.lossFactor         = 0.4;
       hit.bubble             = "Hands up!";
       hit.bubbleTimer        = 1800;
       setSimLog(log => [...log, `Security dispatched — robbery loss reduced`]);
       return;
     }
 
-    // ── CUSTOMER: greet to calm them (one greet per customer) ────────────────
-    if (hit.state !== "queued" && hit.state !== "waiting") return;
-    if (hit.clicked) return;
-    greetCdRef.current = now + 400;
-    hit.clicked     = true;
+    // ── INSPECTOR: distract to reduce fine ───────────────────────────────────
+    if (hit.role === "inspector") {
+      s.inspectorDistracted = true;
+      hit.state    = "leaving";
+      hit.emotion  = "happy";
+      hit.isMoving = true;
+      hit.bubble   = "Oh! Lovely décor.";
+      hit.bubbleTimer = 2000;
+      setSimLog(log => [...log, `Inspector distracted — fine reduced`]);
+      return;
+    }
+
+    // ── CUSTOMER: greet to calm them ─────────────────────────────────────────
     hit.frustration = Math.max(0, (hit.frustration || 0) - 0.45);
     hit.baseAnger   = Math.max(0, (hit.baseAnger   || 0) - 0.15);
     hit.emotion     = hit.frustration > 0.5 ? "neutral" : "happy";
     hit.bubble      = ["Thanks!", "Appreciated.", "Oh, lovely!", "Cheers!"][Math.floor(Math.random()*4)];
     hit.bubbleTimer = 1600;
-
     s.greets = (s.greets || 0) + 1;
     setGreets(s.greets);
     const { x, y } = toIso(hit.gx, hit.gy);
@@ -241,12 +250,17 @@ export default function BankingEmpire() {
       queueCounter:   0,
       queueSlots:     QUEUE_SLOTS,
       tellerSlots:    TELLER_SLOTS,
-      exitPos:        EXIT_POS,
-      vaultPos:       VAULT_POS,
-      managerPos:     MGR_POS,
-      pendingRushSpawns: 0,
-      setupCost:         calculateOneTimeCosts(staff, fac, committed),
-      greets:            0,
+      exitPos:             EXIT_POS,
+      vaultPos:            VAULT_POS,
+      managerPos:          MGR_POS,
+      loanDeskPos:         LOAN_DESK_POS,
+      occupiedTellerSlots: new Set(),
+      loanDeskOccupied:    false,
+      inspectorDistracted: false,
+      clickedCharIds:      new Set(),
+      pendingRushSpawns:   0,
+      setupCost:           calculateOneTimeCosts(staff, fac, committed),
+      greets:              0,
     };
 
     particles.current = [];
@@ -322,10 +336,10 @@ export default function BankingEmpire() {
         if (!c.bubble && randomFloat() < 0.003) {
           if (c.state === "served") {
             c.bubble = `+$${c.deposit.toLocaleString()}`; c.bubbleTimer = 1900;
-          } else if (c.state === "queued" && c.emotion === "angry") {
+          } else if (c.state === "waiting" && c.emotion === "angry") {
             c.bubble = ["Come ON!","Hurry up!","Seriously?!","I'm late!"][Math.floor(Math.random()*4)];
             c.bubbleTimer = 1700;
-          } else if (c.state === "queued" && c.emotion === "neutral") {
+          } else if (c.state === "waiting" && c.emotion === "neutral") {
             c.bubble = ["Good morning","Need a loan...","Hello!"][Math.floor(Math.random()*3)];
             c.bubbleTimer = 1500;
           }
@@ -378,8 +392,9 @@ export default function BankingEmpire() {
     cancelAnimationFrame(animRef.current);
     const s = simState.current;
 
-    const hadInspection   = s.events.some(e => e.type === "inspection" && e.done);
-    const regulatoryFine  = hadInspection && !s.inspectionDone ? 2500 : 0;
+    const hadInspection  = s.events.some(e => e.type === "inspection" && e.done);
+    const baseFine       = hadInspection && !s.inspectionDone ? 2500 : 0;
+    const regulatoryFine = baseFine > 0 && s.inspectorDistracted ? Math.round(baseFine * 0.5) : baseFine;
 
     const dayResult = {
       served:         s.served,

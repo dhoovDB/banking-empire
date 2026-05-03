@@ -384,6 +384,27 @@ function drawDesks(ctx) {
   ctx.fillStyle = "rgba(255,220,150,0.35)";
   ctx.beginPath(); ctx.ellipse(md.x + 24, md.y - 12, 9, 4, 0, 0, Math.PI*2); ctx.fill();
 
+  // Loan officer desk — smaller, beside manager, green baize top
+  const ld = toIso(2.5, 2.4);
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.beginPath(); ctx.ellipse(ld.x, ld.y + 12, 30, 4, 0, 0, Math.PI*2); ctx.fill();
+  const lg = ctx.createLinearGradient(0, ld.y-10, 0, ld.y+10);
+  lg.addColorStop(0, PAL.walnutHi); lg.addColorStop(1, PAL.walnut);
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.roundRect(ld.x - 26, ld.y - 7, 52, 15, 3); ctx.fill();
+  // Green baize top
+  ctx.fillStyle = "#2a4a2a";
+  ctx.beginPath(); ctx.roundRect(ld.x - 24, ld.y - 9, 48, 5, 2); ctx.fill();
+  ctx.fillStyle = "#3a6a3a";
+  ctx.fillRect(ld.x - 23, ld.y - 8, 46, 1);
+  // Nameplate
+  ctx.fillStyle = "#1a140e";
+  ctx.fillRect(ld.x - 12, ld.y - 2, 24, 6);
+  ctx.fillStyle = PAL.brass;
+  ctx.font = "bold 4px 'Nunito',sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("LOANS", ld.x, ld.y + 2);
+
   // Security desk
   const sd = toIso(4.0, 1.4);
   ctx.fillStyle = "rgba(0,0,0,0.22)";
@@ -622,9 +643,10 @@ function drawHoverRing(ctx, char, ts) {
   if (!char) return;
   const { x, y } = toIso(char.gx, char.gy);
   const pulse = 0.55 + Math.sin(ts*0.006)*0.25;
-  const color = char.role === "robber" ? `rgba(255,90,80,${pulse.toFixed(2)})`
-              : char.role === "whale"  ? `rgba(245,200,90,${pulse.toFixed(2)})`
-              :                          `rgba(232,178,90,${pulse.toFixed(2)})`;
+  const color = char.role === "robber"   ? `rgba(255,90,80,${pulse.toFixed(2)})`
+              : char.role === "whale"    ? `rgba(245,200,90,${pulse.toFixed(2)})`
+              : char.role === "inspector"? `rgba(232,200,120,${pulse.toFixed(2)})`
+              :                            `rgba(232,178,90,${pulse.toFixed(2)})`;
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.8;
   ctx.beginPath(); ctx.ellipse(x, y+18, 14, 5.5, 0, 0, Math.PI*2); ctx.stroke();
@@ -660,7 +682,7 @@ function drawInteractTimer(ctx, char, now) {
 // ─── MAIN RENDER FRAME ────────────────────────────────────────────────────────
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
-          hudState, queueSlots, tellerSlots, tellerRoster, hoveredChar } = renderState;
+          hudState, queueSlots, tellerSlots, loanDeskPos, tellerRoster, hoveredChar } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
   // Soft warm spotlight
@@ -684,7 +706,7 @@ export function renderFrame(ctx, renderState, ts) {
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery" });
 
   // Ghost unlockable staff
-  if (staff.loanOfficers===0) { const p=toIso(1.8,2.5); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#3a6a4a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  if (staff.loanOfficers===0) { const p=toIso(loanDeskPos?.gx??2.5, loanDeskPos?.gy??2.4); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#3a6a4a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
   if (staff.security===0)     { const p=toIso(4.0,1.45);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {

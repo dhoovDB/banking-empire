@@ -230,8 +230,8 @@ feature. Do not add `Math.random()` calls elsewhere.
 
 **Movement speeds in `evaluateCharacter` are in grid units per 100ms tick.**
 The arrival threshold in `moveToward` is `0.09` grid units. All speed values must stay well below
-this — the default is `0.028`. Current calibrated values: entering `0.040`, normal walk `0.035`,
-robber `0.038`, robber escape `0.050`, fleeing `0.060`, inspector `0.028`. `moveToward` clamps
+this — the default is `0.042`. Current calibrated values: entering `0.060`, normal walk `0.053`,
+robber `0.057`, robber escape `0.075`, fleeing `0.082`, inspector `0.042`. `moveToward` clamps
 movement to never overshoot the target, but speeds above ~`0.08` will still produce coarse
 single-step arrivals.
 
@@ -298,12 +298,14 @@ Every task summary must end with this block — no exceptions:
 
 ---
 WRITTEN TO DISK: [list every file created or modified]
+ROADMAP.md UPDATED: [exactly one of: "yes — completed items moved, new entries added" / "no changes needed" / "NOT YET — must do before commit"]
 GIT STATUS: [exactly one of: "untracked" / "modified, not staged" / "staged, not committed" / "committed locally" / "pushed to origin/main"]
 NEXT STEP: [one sentence — what needs to happen next]
 ---
 
 Additional rules:
 - Never use the word "done" or "complete" without this block immediately following it
+- **ROADMAP.md must be updated before every commit.** Check two things: (1) move any work completed this session to the Completed section with today's date; (2) add any new backlog entries or design notes that emerged from the session. If nothing changed, write "no changes needed."
 - Never assume a file was written to disk unless the write command ran and returned no errors in this session
 - Never assume a commit happened unless git commit ran and showed a commit hash in this session
 - Never assume a push happened unless git push ran and returned no errors in this session
