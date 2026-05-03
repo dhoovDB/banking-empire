@@ -60,15 +60,18 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       on the setup screen. Players are making blind hire decisions right now.
 - [ ] **Vault era lock** — vault levels 2 and 3 should be visually greyed out
       in era 1 with "Unlocks Era 2" label.
+- [ ] **Waiting seats era lock** — waiting-seat upgrades currently chargeable
+      in era 1. Per design intent (era 1 = staff only, facilities = era 2),
+      lock the +/- buttons in era 1 with the same pattern as the vault lock.
 
 ### 3. Financial correctness minimums
 *Problem: the game gives players incorrect signals about their starting position
 and doesn't enforce consequences for bad decisions.*
 
-- [ ] **One-time costs deducted at sim start** — setup screen shows projected
-      cash after costs but the deduction doesn't happen when the sim starts.
-      Players begin richer than the screen told them. Fix: apply
-      `calculateOneTimeCosts()` result when transitioning from setup to sim.
+- [x] **One-time costs deducted at sim start** — cash now decrements on the
+      setup→sim transition so SimScreen HUD matches the SetupScreen promise.
+      QPL keeps setupCost as a P&L line and adds it back to the cash equation
+      to avoid double-charging. (2026-05-03)
 - [x] **FDIC seizure confirmed working** — verified end-to-end; test added (2026-04-30)
 - [x] **NPL receivership wired** — fixed consecutive-quarters check (was counting
       any N quarters in history; now checks the last N). Tests added. (2026-04-30)
@@ -118,6 +121,9 @@ and doesn't enforce consequences for bad decisions.*
 
 - [ ] **Era 2 unlock wired** — eraProgress accumulates but era transition
       doesn't change available staff, events, or facilities yet.
+      - [ ] Verify vault upgrade and facility costs flow through
+            `calculateOneTimeCosts()` and deduct at sim start. The era 1
+            staff-cost path already exists; era 2 facilities should ride it.
 
 ### Financial model depth
 
@@ -282,6 +288,7 @@ They display as locked teasers, not active options.
 - [x] Inspector wander: walks manager → teller desk → vault with inspection bubbles; click to distract → 50% fine (2026-05-02)
 - [x] Click system refactor: clickedCharIds enforces one click per character; whale 1.2×, robber dispatch, inspector distract (2026-05-02)
 - [x] simulation.test.js: 17 tests covering one-click-max, whale boost, inspector fine, waiting state, loan desk routing (2026-05-02)
+- [x] One-time costs deducted at sim start — cash decrements on setup→sim transition; QPL adds back to avoid double-deduction; 3 tests added (2026-05-03)
 
 ---
 

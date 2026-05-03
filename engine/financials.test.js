@@ -6,6 +6,7 @@ import {
   calculateInterestExpense,
   calculateNPLProvision,
   calculateOneTimeCosts,
+  calculateQuarterlyPL,
   isLiquidityBreached,
   getConcentrationRisk,
   getKPIStatus,
@@ -200,6 +201,53 @@ describe("calculateOneTimeCosts", () => {
 });
 
 // TODO: add calculateFrustration tests when the function is built
+
+describe("calculateQuarterlyPL — setupCost cash flow", () => {
+  // Zero loans/deposits/staff isolates the setupCost effect from interest, salaries, and provisions.
+  const POLICY = { lendingRate: 6.5, depositRate: 2.0 };
+  const STAFF  = { tellers: 0, loanOfficers: 0, security: 0 };
+  const FIN_BASE = {
+    cash:        30000,   // already post-deduction at sim start
+    deposits:    0,
+    loans:       0,
+    equity:      20000,
+    nplRatio:    0.03,
+    quarter:     1,
+    year:        1,
+    reputation:  70,
+    eraProgress: 0,
+    era:         1,
+  };
+  const ZERO_DAY = {
+    served: 0, deposited: 0, loans: 0, walkouts: 0,
+    robberyLoss: 0, regulatoryFine: 0,
+    robberCaught: false, whaleServed: false,
+  };
+  const PRE_PAID_SETUP = 20000;
+  const FIN_EMPTY_BANK = { ...FIN_BASE, deposits: 1, loans: 1 };  // avoid liquidity-floor edge in cash flow asserts
+
+  it("does not double-deduct setupCost from cash (paid at sim start)", () => {
+    const dayResult = { ...ZERO_DAY, setupCost: PRE_PAID_SETUP };
+    const result = calculateQuarterlyPL(FIN_EMPTY_BANK, POLICY, STAFF, dayResult);
+    // netIncome carries the expense for the P&L story.
+    expect(result.netIncome).toBe(-PRE_PAID_SETUP);
+    expect(result.setupCost).toBe(PRE_PAID_SETUP);
+    // Cash should be unchanged: -PRE_PAID_SETUP from netIncome, +PRE_PAID_SETUP from add-back.
+    expect(result.updatedFin.cash).toBe(FIN_EMPTY_BANK.cash);
+  });
+
+  it("zero setupCost: cash equation is fin.cash + netIncome (no add-back kicks in)", () => {
+    const dayResult = { ...ZERO_DAY, setupCost: 0 };
+    const result = calculateQuarterlyPL(FIN_EMPTY_BANK, POLICY, STAFF, dayResult);
+    expect(result.updatedFin.cash).toBe(FIN_EMPTY_BANK.cash + result.netIncome);
+  });
+
+  it("setupCost still appears as a P&L line for the report", () => {
+    const dayResult = { ...ZERO_DAY, setupCost: 7500 };
+    const result = calculateQuarterlyPL(FIN_EMPTY_BANK, POLICY, STAFF, dayResult);
+    expect(result.setupCost).toBe(7500);
+  });
+});
 
 describe("checkLossConditions", () => {
   const INSOLVENCY = {

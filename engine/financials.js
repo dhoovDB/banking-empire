@@ -91,7 +91,10 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
 
   const updatedFin = {
     ...fin,
-    cash:       fin.cash + netIncome,
+    // setupCost is paid at sim start (see BankingEmpire.startSim), so fin.cash
+    // is already post-deduction. Add it back here so netIncome can carry the
+    // expense in the P&L breakdown without charging cash a second time.
+    cash:       fin.cash + netIncome + (dayResult.setupCost || 0),
     deposits:   fin.deposits + depositGrowth,
     loans:      fin.loans + loanGrowth,
     equity:     fin.equity + Math.max(0, Math.round(netIncome * 0.55)),

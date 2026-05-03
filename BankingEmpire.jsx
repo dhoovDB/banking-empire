@@ -226,6 +226,12 @@ export default function BankingEmpire() {
 
   // ── START SIMULATION ─────────────────────────────────────────────────────────
   const startSim = useCallback(() => {
+    // Deduct hire/upgrade costs at the moment of transition so the SimScreen
+    // HUD reflects post-deduction cash. QPL's cash equation adds this back to
+    // avoid double-charging at finishDay; the P&L still surfaces it as a line.
+    const setupCost = calculateOneTimeCosts(staff, fac, committed);
+    if (setupCost > 0) setFin(f => ({ ...f, cash: f.cash - setupCost }));
+
     simState.current = {
       chars:          [],
       nextId:         0,
@@ -259,7 +265,7 @@ export default function BankingEmpire() {
       inspectorDistracted: false,
       clickedCharIds:      new Set(),
       pendingRushSpawns:   0,
-      setupCost:           calculateOneTimeCosts(staff, fac, committed),
+      setupCost,
       greets:              0,
     };
 
@@ -347,7 +353,7 @@ export default function BankingEmpire() {
         if (c.bubbleTimer > 0) c.bubbleTimer -= 100;
       });
     }, 100);
-  }, [fin, staff, fac, policy]);
+  }, [fin, staff, fac, policy, committed]);
 
   // ── EVENT HELPERS ────────────────────────────────────────────────────────────
   function fireEvent(type, s) {
