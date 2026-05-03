@@ -34,16 +34,19 @@ function KPIBadge({ label, value, display, kpiKey }) {
   );
 }
 
-function Stepper({ label, value, min, max, cost, salary, onChange }) {
+function Stepper({ label, value, min, max, cost, salary, tooltip, onChange }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12, color: C.text }}>{label}</div>
-        <div style={{ fontSize: 10, color: C.dim }}>Hire ${cost.toLocaleString()} · $${salary.toLocaleString()}/qtr</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, color: C.text }}>{label}</div>
+          <div style={{ fontSize: 10, color: C.dim }}>Hire ${cost.toLocaleString()} · $${salary.toLocaleString()}/qtr</div>
+        </div>
+        <button onClick={() => onChange(Math.max(min, value - 1))} style={btnSm} disabled={value <= min}>−</button>
+        <span style={{ width: 20, textAlign: "center", color: C.gold, fontWeight: 700 }}>{value}</span>
+        <button onClick={() => onChange(Math.min(max, value + 1))} style={btnSm} disabled={value >= max}>+</button>
       </div>
-      <button onClick={() => onChange(Math.max(min, value - 1))} style={btnSm} disabled={value <= min}>−</button>
-      <span style={{ width: 20, textAlign: "center", color: C.gold, fontWeight: 700 }}>{value}</span>
-      <button onClick={() => onChange(Math.min(max, value + 1))} style={btnSm} disabled={value >= max}>+</button>
+      {tooltip && <div style={{ fontSize: 10, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>{tooltip}</div>}
     </div>
   );
 }
@@ -149,7 +152,7 @@ export default function SetupScreen({ fin, staff, fac, policy, committed, onStaf
           {Object.entries(STAFF_DEFINITIONS).map(([role, def]) => (
             <Stepper key={role}
               label={def.label + "s"} value={staff[role]} min={0} max={def.max}
-              cost={def.hireCost} salary={def.salary}
+              cost={def.hireCost} salary={def.salary} tooltip={def.tooltip}
               onChange={v => onStaffChange(role, v)} />
           ))}
           <div style={{ marginTop: 8, fontSize: 11, color: C.dim, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>

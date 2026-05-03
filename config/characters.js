@@ -13,9 +13,12 @@ export const DEFAULT_FACILITIES = {
 
 // Hire cost and quarterly salary per role
 export const STAFF_DEFINITIONS = {
-  tellers:      { label: "Teller",        hireCost:  5000, salary: 2500, max: 6 },
-  loanOfficers: { label: "Loan Officer",  hireCost:  8000, salary: 4000, max: 3 },
-  security:     { label: "Security",      hireCost:  6000, salary: 3000, max: 2 },
+  tellers:      { label: "Teller",        hireCost:  5000, salary: 2500, max: 6,
+                  tooltip: "Accepts deposits at the counter. More tellers → shorter queues, fewer walk-outs." },
+  loanOfficers: { label: "Loan Officer",  hireCost:  8000, salary: 4000, max: 3,
+                  tooltip: "Approves loans for borrowers. If zero on staff, no loans can originate." },
+  security:     { label: "Security",      hireCost:  6000, salary: 3000, max: 2,
+                  tooltip: "Deters robbers and cuts theft losses. Robberies don't fire until era 2." },
 };
 
 // ─── APPEARANCE PALETTES ──────────────────────────────────────────────────────
