@@ -34,8 +34,8 @@ export function createCustomer(id, queuePos, role = "customer") {
   return {
     id,
     role,
-    gx:          2.8 + (randomFloat() - 0.5) * 0.2, // enter through left door (gx≈3)
-    gy:          7.4,
+    gx:          3.0 + (randomFloat() - 0.5) * 0.2, // enter through left door (gx≈3)
+    gy:          5.8,
     state:       "entering",
     emotion:     defaults?.entryEmotion || "neutral",
     isMoving:    true,
@@ -66,7 +66,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (char.state === "entering") {
       return isNear(char, vaultPos)
         ? { type: "ROBBER_START_VAULT", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.057 };
+        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.043 };
     }
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
@@ -78,7 +78,7 @@ export function evaluateCharacter(char, simState, policy) {
     }
     if (char.state === "leaving") {
       if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.075 };
+      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.056 };
     }
   }
 
@@ -88,7 +88,7 @@ export function evaluateCharacter(char, simState, policy) {
       const dest = simState.managerPos;
       return isNear(char, dest)
         ? { type: "INSPECTOR_START", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: dest, speed: 0.042 };
+        : { type: "MOVE", charId: char.id, target: dest, speed: 0.032 };
     }
     if (char.state === "inspecting") {
       const wanders = char.wanderTargets || [];
@@ -96,7 +96,7 @@ export function evaluateCharacter(char, simState, policy) {
       if (idx >= wanders.length) return { type: "INSPECTOR_DONE", charId: char.id };
       const target = wanders[idx].pos;
       if (isNear(char, target)) return { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id };
-      return { type: "MOVE", charId: char.id, target, speed: 0.042 };
+      return { type: "MOVE", charId: char.id, target, speed: 0.032 };
     }
     if (char.state === "leaving") {
       if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
@@ -109,7 +109,7 @@ export function evaluateCharacter(char, simState, policy) {
 
   if (char.state === "entering") {
     const slot = queueSlots[Math.min(char.queuePos, queueSlots.length - 1)];
-    if (!isNear(char, slot)) return { type: "MOVE", charId: char.id, target: slot, speed: 0.060 };
+    if (!isNear(char, slot)) return { type: "MOVE", charId: char.id, target: slot, speed: 0.045 };
     const free = findFreeSlot(char, simState);
     return free
       ? { type: "CLAIM_SLOT", charId: char.id, ...free }
@@ -136,7 +136,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (isNear(char, target))
       return { type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
                hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0) };
-    return { type: "MOVE", charId: char.id, target, speed: 0.042 };
+    return { type: "MOVE", charId: char.id, target, speed: 0.032 };
   }
 
   if (char.state === "served") {
@@ -150,7 +150,7 @@ export function evaluateCharacter(char, simState, policy) {
   if (char.state === "leaving" || char.state === "fleeing") {
     if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
     return { type: "MOVE_TO_EXIT", charId: char.id,
-             speed: char.state === "fleeing" ? 0.082 : 0.053 };
+             speed: char.state === "fleeing" ? 0.062 : 0.040 };
   }
 
   return { type: "NOOP", charId: char.id };
@@ -244,7 +244,7 @@ export function resolveEvent(type, simState) {
 
   if (type === "robbery") {
     // Robber enters right door — sneaking in while customers use the left
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 5.2, gy: 7.6, bubble: "FREEZE!", bubbleTimer: 2400 });
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 4.0, gy: 5.9, bubble: "FREEZE!", bubbleTimer: 2400 });
   }
   if (type === "inspection") {
     const wanders = [
@@ -253,7 +253,7 @@ export function resolveEvent(type, simState) {
     ];
     spawnedChars.push({
       ...createCustomer(simState.nextId, 0, "inspector"),
-      gx: 2.8, gy: 7.5,
+      gx: 2.5, gy: 5.85,
       bubble: "Inspection.", bubbleTimer: 2200,
       wanderTargets: wanders, wanderIdx: 0,
     });
@@ -263,7 +263,7 @@ export function resolveEvent(type, simState) {
   }
   if (type === "whale") {
     // VIP arrives through the right door
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "whale"), gx: 5.2, gy: 7.5, bubble: "I'd like a word.", bubbleTimer: 2400, queuePos: 0 });
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "whale"), gx: 4.0, gy: 5.85, bubble: "I'd like a word.", bubbleTimer: 2400, queuePos: 0 });
   }
 
   return { spawnedChars, stateDeltas };
@@ -307,7 +307,7 @@ function isNear(char, target) {
   return Math.sqrt(dx*dx + dy*dy) < 0.09;
 }
 
-function moveToward(char, target, speed = 0.042) {
+function moveToward(char, target, speed = 0.032) {
   const dx = target.gx - char.gx, dy = target.gy - char.gy;
   const d  = Math.sqrt(dx*dx + dy*dy);
   if (d < 0.09) return { ...char, isMoving: false };

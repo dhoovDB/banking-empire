@@ -4,8 +4,8 @@ import { tickParticles } from "./particles.js";
 export const CANVAS_W = 1080;
 export const CANVAS_H = 640;
 
-const ISO_TW = 144;
-const ISO_TH = 72;
+const ISO_TW = 192;
+const ISO_TH = 96;
 
 // Single coherent unit for ALL furniture sizing.
 // Previously some objects used a 2x inflation (S = ISO_TW/72) while characters
@@ -54,20 +54,22 @@ export function toIso(gx, gy) {
   };
 }
 
-// gy=1 security · gy=2 manager+tellers+vault · gy=3-4 tellers · gy=5 waiting · gy=6 entrance
+// gy=1 vault row · gy=2 manager+loan officer backstage · gy=3 teller counter · gy=4 queue/waiting · gy=5 entrance
 const TILE_MAP = [
-  ...[1,2,3,4,5,6,7].map(gx => ({ gx, gy:1, c: gx%2 ? PAL.security : PAL.securityAlt })),
-  { gx:1,gy:2,c:PAL.manager  }, { gx:2,gy:2,c:PAL.managerAlt }, { gx:3,gy:2,c:PAL.manager  },
-  { gx:4,gy:2,c:PAL.carpetA  }, { gx:5,gy:2,c:PAL.carpetB    }, { gx:6,gy:2,c:PAL.vault    },
-  { gx:7,gy:2,c:PAL.vaultAlt }, { gx:8,gy:2,c:PAL.vault      },
-  { gx:1,gy:3,c:PAL.floorA   }, { gx:2,gy:3,c:PAL.floorB     }, { gx:3,gy:3,c:PAL.carpetA  },
-  { gx:4,gy:3,c:PAL.carpetB  }, { gx:5,gy:3,c:PAL.carpetA    }, { gx:6,gy:3,c:PAL.carpetB  },
-  { gx:7,gy:3,c:PAL.vault    }, { gx:8,gy:3,c:PAL.vault      },
-  { gx:1,gy:4,c:PAL.floorB   }, { gx:2,gy:4,c:PAL.floorA     }, { gx:3,gy:4,c:PAL.floorB   },
-  { gx:4,gy:4,c:PAL.carpetA  }, { gx:5,gy:4,c:PAL.carpetB    }, { gx:6,gy:4,c:PAL.carpetA  }, { gx:7,gy:4,c:PAL.carpetB },
-  ...[1,2,3].map(gx     => ({ gx, gy:5, c: gx%2 ? PAL.floorA  : PAL.floorB  })),
-  ...[4,5,6,7,8].map(gx => ({ gx, gy:5, c: gx%2 ? PAL.carpetA : PAL.carpetB })),
-  ...[1,2,3,4,5,6,7].map(gx => ({ gx, gy:6, c: gx%2 ? PAL.floorA : PAL.floorB })),
+  // gy=1 — back row, vault alcove
+  { gx:1,gy:1,c:PAL.security    }, { gx:2,gy:1,c:PAL.securityAlt }, { gx:3,gy:1,c:PAL.security    },
+  { gx:4,gy:1,c:PAL.vaultAlt    }, { gx:5,gy:1,c:PAL.vault       }, { gx:6,gy:1,c:PAL.vaultAlt    },
+  // gy=2 — manager + loan officer backstage
+  { gx:1,gy:2,c:PAL.manager     }, { gx:2,gy:2,c:PAL.managerAlt  }, { gx:3,gy:2,c:PAL.carpetA     },
+  { gx:4,gy:2,c:PAL.carpetB     }, { gx:5,gy:2,c:PAL.vault       }, { gx:6,gy:2,c:PAL.vaultAlt    },
+  // gy=3 — teller counter
+  { gx:1,gy:3,c:PAL.floorA      }, { gx:2,gy:3,c:PAL.carpetA     }, { gx:3,gy:3,c:PAL.carpetB     },
+  { gx:4,gy:3,c:PAL.carpetA     }, { gx:5,gy:3,c:PAL.carpetB     }, { gx:6,gy:3,c:PAL.floorA      },
+  // gy=4 — queue / waiting carpet
+  { gx:1,gy:4,c:PAL.floorB      }, { gx:2,gy:4,c:PAL.carpetA     }, { gx:3,gy:4,c:PAL.carpetB     },
+  { gx:4,gy:4,c:PAL.carpetA     }, { gx:5,gy:4,c:PAL.carpetB     }, { gx:6,gy:4,c:PAL.floorB      },
+  // gy=5 — entrance row
+  ...[1,2,3,4,5,6].map(gx => ({ gx, gy:5, c: gx%2 ? PAL.floorA : PAL.floorB })),
 ];
 
 const TILE_LABELS = {}; // tile labels removed — they fought the cleaner look
@@ -106,9 +108,9 @@ function drawWall(ctx, gx, gy, side, wh = 78) {
 // ─── ENTRANCE — refined wood + brass double doors ───────────────────────────
 function drawEntrance(ctx) {
   const wh = 50;
-  [1,2,3,4,5,6,7].forEach(gx => {
-    const isDoor = gx === 3 || gx === 5;
-    const { x, y } = toIso(gx, 6);
+  [1,2,3,4,5,6].forEach(gx => {
+    const isDoor = gx === 3 || gx === 4;
+    const { x, y } = toIso(gx, 5);
     const x0 = x - ISO_TW/2, y0 = y + ISO_TH/2;
     const x1 = x,             y1 = y + ISO_TH;
 
@@ -170,11 +172,11 @@ function drawEntrance(ctx) {
 function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   if (numTellers <= 0) return;
 
-  const startGx = 3.0;
-  const endGx   = startGx + (numTellers - 1) * 0.75 + 0.5;
-  const gyFront = 3.6;  // front edge (customer-facing)
-  const gyBack  = 3.0;  // back edge (teller-side)
-  const faceH   = 28;   // pixel height of the counter face
+  const startGx = 2.4;
+  const endGx   = startGx + (numTellers - 1) * 0.55 + 0.5;
+  const gyFront = 3.05; // front edge (customer-facing)
+  const gyBack  = 2.55; // back edge (teller-side)
+  const faceH   = 32;   // pixel height of the counter face
 
   // Four iso corners of the counter top surface
   const bl = toIso(startGx, gyFront); // front-left
@@ -234,7 +236,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
 
   // Per-teller window plaque on the front face
   for (let i = 0; i < numTellers; i++) {
-    const px = toIso(startGx + 0.25 + i * 0.75, gyFront);
+    const px = toIso(startGx + 0.25 + i * 0.55, gyFront);
     const active = activeTellers.has(i);
     if (active) {
       ctx.fillStyle = "rgba(245,200,120,0.22)";
@@ -253,7 +255,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
 
 // ─── VAULT — polished steel, subtle, no cartoon red ─────────────────────────
 function drawVault(ctx, { vaultOpen, robberyActive }) {
-  const vd = toIso(7.5, 2.35);
+  const vd = toIso(5.0, 1.5);
 
   // Alcove — recessed dark slate
   ctx.fillStyle = "#15181b";
@@ -356,7 +358,7 @@ function drawVault(ctx, { vaultOpen, robberyActive }) {
 // ─── MANAGER & SECURITY DESKS — sober walnut with monitor ───────────────────
 function drawDesks(ctx) {
   // Manager desk
-  const md = toIso(1.6, 2.4);
+  const md = toIso(1.2, 2.0);
   ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath(); ctx.ellipse(md.x, md.y + 14, 38, 5, 0, 0, Math.PI*2); ctx.fill();
   const mg = ctx.createLinearGradient(0, md.y-12, 0, md.y+12);
@@ -385,7 +387,7 @@ function drawDesks(ctx) {
   ctx.beginPath(); ctx.ellipse(md.x + 24, md.y - 12, 9, 4, 0, 0, Math.PI*2); ctx.fill();
 
   // Loan officer desk — smaller, beside manager, green baize top
-  const ld = toIso(2.5, 2.4);
+  const ld = toIso(2.2, 2.0);
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.beginPath(); ctx.ellipse(ld.x, ld.y + 12, 30, 4, 0, 0, Math.PI*2); ctx.fill();
   const lg = ctx.createLinearGradient(0, ld.y-10, 0, ld.y+10);
@@ -406,7 +408,7 @@ function drawDesks(ctx) {
   ctx.fillText("LOANS", ld.x, ld.y + 2);
 
   // Security desk
-  const sd = toIso(4.0, 1.4);
+  const sd = toIso(2.5, 1.0);
   ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath(); ctx.ellipse(sd.x, sd.y + 12, 40, 4, 0, 0, Math.PI*2); ctx.fill();
   const sg = ctx.createLinearGradient(0, sd.y-10, 0, sd.y+10);
@@ -430,8 +432,8 @@ function drawDesks(ctx) {
 
 // Waiting chairs — leather club chairs
 function drawChairs(ctx) {
-  for (let i = 0; i < 7; i++) {
-    const { x, y } = toIso(1.4 + i*0.38, 4.9);
+  for (let i = 0; i < 5; i++) {
+    const { x, y } = toIso(1.5 + i*0.4, 3.5);
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.beginPath(); ctx.ellipse(x, y + 8, 11, 3, 0, 0, Math.PI*2); ctx.fill();
@@ -472,7 +474,7 @@ function drawFurniture(ctx, opts) {
   drawVault(ctx, opts);
   drawDesks(ctx);
   drawChairs(ctx);
-  [toIso(1.0, 5.5), toIso(8.0, 5.5), toIso(0.9, 2.8), toIso(8.5, 2.8)]
+  [toIso(0.7, 4.5), toIso(6.3, 4.5), toIso(0.7, 2.0), toIso(6.3, 2.0)]
     .forEach(p => drawPlant(ctx, p));
 }
 
@@ -691,10 +693,10 @@ export function renderFrame(ctx, renderState, ts) {
   ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
   TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
-  // gy=1 (security row) gets full-height back wall; gy=2 (manager/loan officer) gets a shorter
+  // gy=1 (vault row) gets full-height back wall; gy=2 (manager/loan officer) gets a shorter
   // divider so the loan officer is visible over it.
-  TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right", t.gy===2 ? 36 : 78));
-  TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left",  t.gy<=2  ? 36 : 78));
+  TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right", t.gy===2 ? 48 : 104));
+  TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left",  t.gy<=2  ? 48 : 104));
 
   // Subtle queue-line marker (brass dots)
   queueSlots.slice(0,8).forEach(({gx,gy})=>{
@@ -706,8 +708,8 @@ export function renderFrame(ctx, renderState, ts) {
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery" });
 
   // Ghost unlockable staff
-  if (staff.loanOfficers===0) { const p=toIso(loanDeskPos?.gx??2.5, loanDeskPos?.gy??2.4); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#3a6a4a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
-  if (staff.security===0)     { const p=toIso(4.0,1.45);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  if (staff.loanOfficers===0) { const p=toIso(loanDeskPos?.gx??2.2, loanDeskPos?.gy??2.0); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#3a6a4a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  if (staff.security===0)     { const p=toIso(2.5,1.05);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {
     const def=tellerRoster[i];

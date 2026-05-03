@@ -38,15 +38,48 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 *Problem: the sim loop has known issues that break the player experience.*
 
 - [ ] **Customer pathfinding — bunching at entrance** — customers queue near
-      the front door instead of spreading toward tellers. Queue slots may be
-      too tightly clustered (gy:5.5–6.1) or the progress > 0.2 service-advance
-      threshold kicks in too late. Investigate slot spacing first.
+      the front door instead of spreading toward tellers. Re-evaluate after the
+      6×5 grid overhaul (slot positions changed). If still bunching, hardcoded
+      waypoints around the teller desk are the planned fix (see section 1c).
 - [x] **Customer movement too slow** — scaled all speed constants ×1.5 for ISO_TW=144. (2026-05-02)
 - [x] **Customers exit to corner** — EXIT_POS already corrected by prior Lovable change; confirmed working. (2026-05-02)
 - [x] **Inspector walks to corner** — inspector now wanders to teller desk and vault before leaving; no longer targets off-screen position. (2026-05-02)
 - [x] **Loan officer desk added** — LOAN_DESK_POS at gx:2.5, gy:2.4; loan customers route there separately from teller queue. (2026-05-02)
-- [ ] **Customer spawn visibility** — customers spawn at gy:7.4 (below entrance).
-      If doorway crossing reads late, try gy:6.6 so the entry moment is explicit.
+- [x] **Customer spawn visibility** — superseded by the 6×5 grid overhaul. Spawn now lives at gy=5.8 just outside the gy=5 entrance row, so the doorway crossing reads cleanly. (2026-05-03)
+
+### 1c. Layout overhaul follow-ups (from playthrough feedback 2026-05-03)
+*The 6×5 grid + ISO_TW=192 overhaul shipped. These four items are the remaining*
+*pieces from the same playthrough — they all depend on the new grid being settled.*
+
+- [ ] **Pathfinding — customers walk through the teller desk** — `moveToward`
+      goes in straight lines and ignores furniture. Hardcoded waypoint paths
+      around the teller counter are acceptable for the era 1 demo; real
+      obstacle-aware pathfinding is a v2 problem. Add a waypoint queue to
+      character state, route entering→queue and queue→teller through one or
+      two intermediate points keyed off the new desk geometry.
+- [ ] **Narrower teller desk** — desk currently spans the full row width.
+      Reduce to roughly half a tile per teller window so the counter reads as
+      a service desk rather than a wall. May need to shift the teller slot
+      gy values forward so served customers stand at the counter, not in
+      empty space.
+- [ ] **Loan officer + customer share one desk** — the loan officer chibi is
+      drawn at one position and customers route to a different one. Sync the
+      draw position to `LOAN_DESK_POS` (or vice versa) so they meet at the
+      same tile.
+- [ ] **Vault dimensionality** — the vault still breaks the iso projection
+      (depth not consistent with the rest of the room). The new gx=5.0, gy=1.5
+      position made it more visible but didn't fix the underlying math. Redraw
+      with consistent iso depth (top face, front face, side faces all using
+      the same per-pixel-per-grid-unit ratio).
+
+### 1d. Latent bug found during plan exploration
+
+- [ ] **`vaultPos` referenced as bare variable in robber pathing** —
+      `engine/simulation.js:67,69` references `vaultPos` directly instead of
+      `simState.vaultPos`. ReferenceError fires the moment a robber tries to
+      walk to the vault. Robberies are era 2+ only, so this hasn't been
+      triggered in playtest. One-line fix; bundle with the next robbery-related
+      task.
 
 ### 1b. Queue behaviour (completed this session)
 
@@ -56,8 +89,6 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 ### 2. Setup screen clarity
 *Problem: players don't understand what they're buying.*
 
-- [ ] **Staff role tooltips** — each staff type needs a one-line mechanic summary
-      on the setup screen. Players are making blind hire decisions right now.
 - [ ] **Vault era lock** — vault levels 2 and 3 should be visually greyed out
       in era 1 with "Unlocks Era 2" label.
 - [ ] **Waiting seats era lock** — waiting-seat upgrades currently chargeable
@@ -95,6 +126,14 @@ and doesn't enforce consequences for bad decisions.*
 ## MEDIUM TERM — v2 quality
 *Do these after v1 ships. Improves depth and replayability.*
 
+### UI polish
+
+- [ ] **Framer Motion on the React shell** — animate phase transitions
+      (setup → simulating → report), KPI counter tweens, event-banner
+      enter/exit, and modal-style screens. Cannot animate inside the
+      `<canvas>` element — this is for the React UI surrounding it.
+      Item #6 in the 2026-05-03 playthrough sequence.
+
 ### Gameplay loop improvements
 
 - [ ] **Loan officer roster on canvas** — when loan officers > 0, draw a named chibi at the loan desk (same pattern as teller roster). Currently the ghost disappears but no live character replaces it.
@@ -102,6 +141,8 @@ and doesn't enforce consequences for bad decisions.*
 - [ ] **Inspector click feedback in UI** — when inspector is distracted, show a banner or log entry confirming the fine amount was reduced (e.g. "Fine reduced to $1,250"). Player currently has to wait for the report screen to see the effect.
 
 - [ ] **Robber click requires security hired** — currently clicking a robber works even with security = 0 (no security staff to dispatch). Guard the interaction: if `securityCount === 0`, show a "No security on duty" bubble instead.
+
+- [ ] **Loan officer count beyond 1 has no effect** — `STAFF_DEFINITIONS.loanOfficers.max` is 3, but every check in `engine/simulation.js` (lines 138, 145, 297) is binary (`loanOfficers > 0`), and there's a single `loanDeskPos` / `loanDeskOccupied`. Hiring 2 or 3 burns $8k + $4k/qtr each for zero throughput gain. Two ways to fix: (a) scale loan desks with officer count (second desk at 2, third at 3), or (b) cap `max: 1` and accept the simpler model. (a) is more interesting gameplay, (b) is honest about what the game models today. Discovered while writing setup-screen tooltips on 2026-05-03.
 
 - [ ] **Proactive NIM tutorial** — era 1 quarter 1 should explain NIM before
       the player's first rate decision. Currently players discover it reactively.
@@ -289,6 +330,8 @@ They display as locked teasers, not active options.
 - [x] Click system refactor: clickedCharIds enforces one click per character; whale 1.2×, robber dispatch, inspector distract (2026-05-02)
 - [x] simulation.test.js: 17 tests covering one-click-max, whale boost, inspector fine, waiting state, loan desk routing (2026-05-02)
 - [x] One-time costs deducted at sim start — cash decrements on setup→sim transition; QPL adds back to avoid double-deduction; 3 tests added (2026-05-03)
+- [x] Staff role tooltips on setup screen — `tooltip` field added to `STAFF_DEFINITIONS`, rendered inline below each Stepper; covers teller, loan officer, security (2026-05-03)
+- [x] Bigger-feeling branch — grid 8×6 → 6×5, ISO_TW 144 → 192, all speed constants × 0.75; canvas elements (vault, desks, chairs, plants) repositioned for the new grid; tests still 61/61 passing (2026-05-03)
 
 ---
 

@@ -230,10 +230,14 @@ feature. Do not add `Math.random()` calls elsewhere.
 
 **Movement speeds in `evaluateCharacter` are in grid units per 100ms tick.**
 The arrival threshold in `moveToward` is `0.09` grid units. All speed values must stay well below
-this — the default is `0.042`. Current calibrated values: entering `0.060`, normal walk `0.053`,
-robber `0.057`, robber escape `0.075`, fleeing `0.082`, inspector `0.042`. `moveToward` clamps
-movement to never overshoot the target, but speeds above ~`0.08` will still produce coarse
-single-step arrivals.
+this — the default is `0.032`. Current calibrated values for `ISO_TW=192` (6×5 grid): entering
+`0.045`, normal walk `0.040`, robber `0.043`, robber escape `0.056`, fleeing `0.062`, inspector
+`0.032`, advancing/customer-to-teller `0.032`. `moveToward` clamps movement to never overshoot
+the target, but speeds above ~`0.06` will still produce coarse single-step arrivals.
+
+When tile size changes, multiply all speeds by `OLD_ISO_TW / NEW_ISO_TW` to preserve perceived
+pace. The 6×5 grid + ISO_TW=192 values above derive from the original ISO_TW=144 set scaled by
+`144/192 = 0.75`.
 
 ---
 

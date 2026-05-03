@@ -42,19 +42,22 @@ import SimScreen                                   from "./ui/SimScreen.jsx";
 import ReportScreen                                from "./ui/ReportScreen.jsx";
 
 // ─── LAYOUT CONSTANTS ────────────────────────────────────────────────────────
+// Grid is 6 wide × 5 deep (gx 1–6, gy 1–5). Spawn/exit row sits at gy=5.8 just outside.
 const QUEUE_SLOTS = [
-  {gx:3.9,gy:5.5},{gx:3.5,gy:5.7},{gx:4.3,gy:5.7},{gx:3.1,gy:5.9},
-  {gx:3.9,gy:5.9},{gx:4.7,gy:5.9},{gx:3.5,gy:6.1},{gx:4.3,gy:6.1},
-  {gx:3.0,gy:6.1},{gx:5.0,gy:6.1},
+  {gx:3.5,gy:4.0},
+  {gx:3.1,gy:4.2},{gx:3.9,gy:4.2},
+  {gx:2.7,gy:4.4},{gx:3.5,gy:4.4},{gx:4.3,gy:4.4},
+  {gx:3.1,gy:4.6},{gx:3.9,gy:4.6},
+  {gx:2.7,gy:4.8},{gx:4.3,gy:4.8},
 ];
 const TELLER_SLOTS = [
-  {gx:3.3,gy:3.4},{gx:4.0,gy:3.25},{gx:4.7,gy:3.4},
-  {gx:5.4,gy:3.25},{gx:6.1,gy:3.4},{gx:6.8,gy:3.25},
+  {gx:2.4,gy:2.85},{gx:2.95,gy:2.7},{gx:3.5,gy:2.85},
+  {gx:4.05,gy:2.7},{gx:4.6,gy:2.85},{gx:5.15,gy:2.7},
 ];
-const EXIT_POS      = {gx:5.0, gy:7.4}; // exit through right door
-const VAULT_POS     = {gx:7.4, gy:2.3};
-const MGR_POS       = {gx:1.6, gy:2.4};
-const LOAN_DESK_POS = {gx:2.5, gy:2.4}; // loan officer desk — right of manager
+const EXIT_POS      = {gx:3.5, gy:5.8}; // exit through entrance row
+const VAULT_POS     = {gx:5.0, gy:1.5};
+const MGR_POS       = {gx:1.2, gy:2.0};
+const LOAN_DESK_POS = {gx:2.2, gy:2.0}; // loan officer desk — right of manager
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
