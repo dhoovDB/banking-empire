@@ -131,6 +131,13 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "advancing") {
+    // Loan customers route around the left end of the teller counter — they hit
+    // the bypass waypoint first, then continue to the loan desk.
+    if (char.nextWaypoint) {
+      if (isNear(char, char.nextWaypoint))
+        return { type: "CLEAR_WAYPOINT", charId: char.id };
+      return { type: "MOVE", charId: char.id, target: char.nextWaypoint, speed: 0.032 };
+    }
     const target = char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex];
     if (!target) return { type: "NOOP", charId: char.id };
     if (isNear(char, target))
@@ -148,6 +155,12 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "leaving" || char.state === "fleeing") {
+    // Loan customers retrace the bypass waypoint on the way out.
+    if (char.nextWaypoint) {
+      if (isNear(char, char.nextWaypoint))
+        return { type: "CLEAR_WAYPOINT", charId: char.id };
+      return { type: "MOVE", charId: char.id, target: char.nextWaypoint, speed: 0.040 };
+    }
     if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
     return { type: "MOVE_TO_EXIT", charId: char.id,
              speed: char.state === "fleeing" ? 0.062 : 0.040 };
@@ -169,7 +182,14 @@ export function applyCommand(command, char, simState) {
       const newOccupied = new Set(simState.occupiedTellerSlots);
       if (!command.useLoanDesk) newOccupied.add(command.tellerIndex);
       return {
-        updatedChar: { ...char, state: "advancing", tellerIndex: command.tellerIndex, useLoanDesk: command.useLoanDesk || false, isMoving: true },
+        updatedChar: {
+          ...char,
+          state: "advancing",
+          tellerIndex: command.tellerIndex,
+          useLoanDesk: command.useLoanDesk || false,
+          isMoving: true,
+          nextWaypoint: command.useLoanDesk ? simState.loanBypassWaypoint : null,
+        },
         stateDeltas: { occupiedTellerSlots: newOccupied, loanDeskOccupied: command.useLoanDesk ? true : simState.loanDeskOccupied },
       };
     }
@@ -185,7 +205,14 @@ export function applyCommand(command, char, simState) {
       const released = new Set(simState.occupiedTellerSlots);
       if (char.tellerIndex !== undefined && char.tellerIndex >= 0) released.delete(char.tellerIndex);
       return {
-        updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true },
+        updatedChar: {
+          ...char,
+          state: "leaving",
+          emotion: "happy",
+          isMoving: true,
+          // Loan customers retrace the bypass waypoint on the way out.
+          nextWaypoint: char.useLoanDesk ? simState.loanBypassWaypoint : null,
+        },
         stateDeltas: {
           served:              simState.served + 1,
           deposited:           simState.deposited + char.deposit,
@@ -217,6 +244,8 @@ export function applyCommand(command, char, simState) {
     }
     case "INSPECTOR_DONE":
       return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { inspectionDone: true, activeEvent: null } };
+    case "CLEAR_WAYPOINT":
+      return { updatedChar: { ...char, nextWaypoint: null }, stateDeltas: {} };
     case "EXIT":
       return { updatedChar: { ...char, state: "exited" }, stateDeltas: {} };
     default:

@@ -51,21 +51,21 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 *The 6×5 grid + ISO_TW=192 overhaul shipped. These four items are the remaining*
 *pieces from the same playthrough — they all depend on the new grid being settled.*
 
-- [ ] **Pathfinding — customers walk through the teller desk** — `moveToward`
-      goes in straight lines and ignores furniture. Hardcoded waypoint paths
-      around the teller counter are acceptable for the era 1 demo; real
-      obstacle-aware pathfinding is a v2 problem. Add a waypoint queue to
-      character state, route entering→queue and queue→teller through one or
-      two intermediate points keyed off the new desk geometry.
+- [x] **Pathfinding — customers walk through the teller desk** — fixed by
+      geometry adjustment, not waypoints. Customer service position moved to
+      gy=3.10 (in front of counter front at 3.05) instead of inside the
+      counter (gy=2.7/2.85). Teller chibi draw offset adjusted to keep teller
+      behind the counter back at gy≈2.45. The waypoint mechanism is the right
+      tool for genuine obstacle avoidance later — not needed here. (2026-05-05)
 - [ ] **Narrower teller desk** — desk currently spans the full row width.
       Reduce to roughly half a tile per teller window so the counter reads as
-      a service desk rather than a wall. May need to shift the teller slot
-      gy values forward so served customers stand at the counter, not in
-      empty space.
+      a service desk rather than a wall. (Slot gy already shifted forward as
+      part of the pathfinding fix above; only the counter width remains.)
 - [ ] **Loan officer + customer share one desk** — the loan officer chibi is
       drawn at one position and customers route to a different one. Sync the
       draw position to `LOAN_DESK_POS` (or vice versa) so they meet at the
-      same tile.
+      same tile. (Pathing is fixed via the bypass waypoint as of 2026-05-05;
+      this remaining item is the visual desk-coincidence problem.)
 - [ ] **Vault dimensionality** — the vault still breaks the iso projection
       (depth not consistent with the rest of the room). The new gx=5.0, gy=1.5
       position made it more visible but didn't fix the underlying math. Redraw
@@ -332,6 +332,9 @@ They display as locked teasers, not active options.
 - [x] One-time costs deducted at sim start — cash decrements on setup→sim transition; QPL adds back to avoid double-deduction; 3 tests added (2026-05-03)
 - [x] Staff role tooltips on setup screen — `tooltip` field added to `STAFF_DEFINITIONS`, rendered inline below each Stepper; covers teller, loan officer, security (2026-05-03)
 - [x] Bigger-feeling branch — grid 8×6 → 6×5, ISO_TW 144 → 192, all speed constants × 0.75; canvas elements (vault, desks, chairs, plants) repositioned for the new grid; tests still 61/61 passing (2026-05-03)
+- [x] No more walk-through teller desk — customer service position shifted from inside counter (gy=2.7/2.85) to in front (gy=3.10); teller draw offset adjusted (-0.25 → -0.65) to keep teller behind counter back. Waypoint state machine deferred until a route genuinely needs obstacle avoidance. (2026-05-05)
+- [x] Loan customer hardcoded path around the teller counter — `nextWaypoint` field on customer state; `CLAIM_SLOT` with `useLoanDesk` sets the bypass point at (gx=1.9, gy=3.5); `COMPLETE_SERVICE` for loan customers sets it again on the way out; advancing/leaving states consume the waypoint before the final target. New `CLEAR_WAYPOINT` command. 5 tests added; 66/66 passing. (2026-05-05)
+- [x] Back and left walls disabled — commented out in renderer/canvas.js while the layout is being tuned; bring back by uncommenting. Entrance row stays. (2026-05-05)
 
 ---
 

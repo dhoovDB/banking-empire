@@ -693,10 +693,11 @@ export function renderFrame(ctx, renderState, ts) {
   ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
   TILE_MAP.forEach(t=>drawFloor(ctx,t.gx,t.gy,t.c,TILE_LABELS[`${t.gy},${t.gx}`]||""));
-  // gy=1 (vault row) gets full-height back wall; gy=2 (manager/loan officer) gets a shorter
-  // divider so the loan officer is visible over it.
-  TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right", t.gy===2 ? 48 : 104));
-  TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left",  t.gy<=2  ? 48 : 104));
+  // Back and left walls intentionally disabled while the layout is being tuned.
+  // Bring them back by uncommenting; drawWall() and the picture-rail accents are
+  // still in place. Entrance row (drawEntrance) renders separately below.
+  // TILE_MAP.filter(t=>t.gy<=2).forEach(t=>drawWall(ctx,t.gx,t.gy,"right", t.gy===2 ? 48 : 104));
+  // TILE_MAP.filter(t=>t.gx<=1).forEach(t=>drawWall(ctx,t.gx,t.gy,"left",  t.gy<=2  ? 48 : 104));
 
   // Subtle queue-line marker (brass dots)
   queueSlots.slice(0,8).forEach(({gx,gy})=>{
@@ -713,7 +714,9 @@ export function renderFrame(ctx, renderState, ts) {
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {
     const def=tellerRoster[i];
-    const{x,y}=toIso(tellerSlots[i].gx, tellerSlots[i].gy-0.25);
+    // Slot gy is the *customer*'s stop position (in front of counter at 3.10).
+    // Teller stands behind the counter back edge at ~2.45 — 0.65 grid units back.
+    const{x,y}=toIso(tellerSlots[i].gx, tellerSlots[i].gy-0.65);
     const emotion=activeTellers.has(i)?"serving":"neutral";
     drawChibi(ctx,x,y-8,{id:800+i,role:"teller",skinTone:def.skin,hairColor:def.hair,outfitColor:def.outfit,isMoving:false,emotion},ts,{scale:0.9});
     if (activeTellers.has(i)) drawBubble(ctx,x,y-30,"Next please!");

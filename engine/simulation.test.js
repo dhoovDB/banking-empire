@@ -10,6 +10,7 @@ function makeSimState(overrides = {}) {
     queueSlots:          [{ gx: 3.9, gy: 5.5 }, { gx: 3.5, gy: 5.7 }],
     tellerSlots:         [{ gx: 3.3, gy: 3.4 }, { gx: 4.0, gy: 3.25 }],
     loanDeskPos:         { gx: 2.5, gy: 2.4 },
+    loanBypassWaypoint:  { gx: 1.9, gy: 3.5 },
     exitPos:             { gx: 5.0, gy: 7.4 },
     vaultPos:            { gx: 7.4, gy: 2.3 },
     managerPos:          { gx: 1.6, gy: 2.4 },
@@ -183,5 +184,71 @@ describe("loan desk routing", () => {
     const command = { type: "COMPLETE_SERVICE", hasLoan: true, isWhale: false };
     const { stateDeltas } = applyCommand(command, char, simState);
     expect(stateDeltas.loanDeskOccupied).toBe(false);
+  });
+});
+
+// ─── LOAN BYPASS WAYPOINT ────────────────────────────────────────────────────
+// Loan customers route around the left end of the teller counter via a single
+// waypoint, both when advancing to the loan desk and when leaving from it.
+
+describe("loan bypass waypoint", () => {
+  it("CLAIM_SLOT with useLoanDesk sets nextWaypoint to the bypass point", () => {
+    const simState = makeSimState({ loanOfficers: 1 });
+    const char = { id: 10, role: "customer", state: "entering", gx: 0, gy: 0, loanAmt: 10000 };
+    const command = { type: "CLAIM_SLOT", charId: 10, tellerIndex: -1, useLoanDesk: true };
+    const { updatedChar } = applyCommand(command, char, simState);
+    expect(updatedChar.nextWaypoint).toEqual(simState.loanBypassWaypoint);
+  });
+
+  it("CLAIM_SLOT without useLoanDesk leaves nextWaypoint null", () => {
+    const simState = makeSimState();
+    const char = { id: 11, role: "customer", state: "entering", gx: 0, gy: 0, loanAmt: 0 };
+    const command = { type: "CLAIM_SLOT", charId: 11, tellerIndex: 0, useLoanDesk: false };
+    const { updatedChar } = applyCommand(command, char, simState);
+    expect(updatedChar.nextWaypoint).toBeNull();
+  });
+
+  it("advancing customer with nextWaypoint moves toward waypoint, then clears, then targets loan desk", () => {
+    const simState = makeSimState({ loanOfficers: 1, loanDeskOccupied: true });
+    // Customer just claimed loan desk — far from waypoint
+    let char = { id: 12, role: "customer", state: "advancing", gx: 3.5, gy: 5.5,
+                 useLoanDesk: true, tellerIndex: -1, loanAmt: 10000,
+                 nextWaypoint: simState.loanBypassWaypoint };
+    // Step 1: should target waypoint, not loan desk
+    let cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("MOVE");
+    expect(cmd.target).toEqual(simState.loanBypassWaypoint);
+
+    // Step 2: customer reaches waypoint — should request CLEAR_WAYPOINT
+    char = atPos(char, simState.loanBypassWaypoint);
+    cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLEAR_WAYPOINT");
+
+    // Step 3: apply CLEAR_WAYPOINT, then advancing should target loan desk
+    const { updatedChar } = applyCommand(cmd, char, simState);
+    expect(updatedChar.nextWaypoint).toBeNull();
+    cmd = evaluateCharacter(updatedChar, simState, makePolicy());
+    expect(cmd.type).toBe("MOVE");
+    expect(cmd.target).toEqual(simState.loanDeskPos);
+  });
+
+  it("COMPLETE_SERVICE for loan customer sets nextWaypoint for the leaving path", () => {
+    const simState = makeSimState({ loanDeskOccupied: true });
+    const char = { id: 13, role: "customer", state: "served", deposit: 5000,
+                   tellerIndex: -1, useLoanDesk: true, loanAmt: 10000 };
+    const command = { type: "COMPLETE_SERVICE", hasLoan: true, isWhale: false };
+    const { updatedChar } = applyCommand(command, char, simState);
+    expect(updatedChar.state).toBe("leaving");
+    expect(updatedChar.nextWaypoint).toEqual(simState.loanBypassWaypoint);
+  });
+
+  it("leaving customer with nextWaypoint moves toward waypoint, not exit", () => {
+    const simState = makeSimState();
+    const char = { id: 14, role: "customer", state: "leaving",
+                   gx: 2.2, gy: 2.0, useLoanDesk: true,
+                   nextWaypoint: simState.loanBypassWaypoint };
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("MOVE");
+    expect(cmd.target).toEqual(simState.loanBypassWaypoint);
   });
 });

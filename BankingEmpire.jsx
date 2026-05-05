@@ -50,14 +50,21 @@ const QUEUE_SLOTS = [
   {gx:3.1,gy:4.6},{gx:3.9,gy:4.6},
   {gx:2.7,gy:4.8},{gx:4.3,gy:4.8},
 ];
+// Teller slots are where the *customer* stops to be served — in front of the
+// counter (gyFront=3.05), not inside it. The teller chibi is drawn behind the
+// counter via a fixed offset in renderer/canvas.js.
 const TELLER_SLOTS = [
-  {gx:2.4,gy:2.85},{gx:2.95,gy:2.7},{gx:3.5,gy:2.85},
-  {gx:4.05,gy:2.7},{gx:4.6,gy:2.85},{gx:5.15,gy:2.7},
+  {gx:2.4,gy:3.10},{gx:2.95,gy:3.10},{gx:3.5,gy:3.10},
+  {gx:4.05,gy:3.10},{gx:4.6,gy:3.10},{gx:5.15,gy:3.10},
 ];
 const EXIT_POS      = {gx:3.5, gy:5.8}; // exit through entrance row
 const VAULT_POS     = {gx:5.0, gy:1.5};
 const MGR_POS       = {gx:1.2, gy:2.0};
 const LOAN_DESK_POS = {gx:2.2, gy:2.0}; // loan officer desk — right of manager
+// Loan customers route around the left end of the teller counter via this
+// waypoint (left of counter at gx<2.4, in front of counter at gy>3.05).
+// Used on both advancing (queue → loan desk) and leaving (loan desk → exit).
+const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
@@ -263,6 +270,7 @@ export default function BankingEmpire() {
       vaultPos:            VAULT_POS,
       managerPos:          MGR_POS,
       loanDeskPos:         LOAN_DESK_POS,
+      loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
       occupiedTellerSlots: new Set(),
       loanDeskOccupied:    false,
       inspectorDistracted: false,
