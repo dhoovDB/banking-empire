@@ -430,10 +430,11 @@ function drawDesks(ctx) {
   }
 }
 
-// Waiting chairs — leather club chairs
-function drawChairs(ctx) {
-  for (let i = 0; i < 5; i++) {
-    const { x, y } = toIso(1.5 + i*0.4, 3.5);
+// Waiting chairs — leather club chairs. One drawn per seat position, so the
+// number of chairs matches `fac.waitingSeats` set on the SetupScreen.
+function drawChairs(ctx, seatPositions = []) {
+  for (const seat of seatPositions) {
+    const { x, y } = toIso(seat.gx, seat.gy);
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.beginPath(); ctx.ellipse(x, y + 8, 11, 3, 0, 0, Math.PI*2); ctx.fill();
@@ -473,7 +474,7 @@ function drawPlant(ctx, {x, y}) {
 function drawFurniture(ctx, opts) {
   drawVault(ctx, opts);
   drawDesks(ctx);
-  drawChairs(ctx);
+  drawChairs(ctx, opts.seatPositions);
   [toIso(0.7, 4.5), toIso(6.3, 4.5), toIso(0.7, 2.0), toIso(6.3, 2.0)]
     .forEach(p => drawPlant(ctx, p));
 }
@@ -684,8 +685,8 @@ function drawInteractTimer(ctx, char, now) {
 // ─── MAIN RENDER FRAME ────────────────────────────────────────────────────────
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
-          hudState, queueSlots, tellerSlots, loanDeskPos, tellerRoster,
-          loanOfficerRoster, hoveredChar } = renderState;
+          hudState, queueSlots, tellerSlots, loanDeskPos, seatPositions,
+          tellerRoster, loanOfficerRoster, hoveredChar } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
   // Soft warm spotlight
@@ -707,7 +708,7 @@ export function renderFrame(ctx, renderState, ts) {
     ctx.beginPath(); ctx.ellipse(x,y+15,7,3.2,0,0,Math.PI*2); ctx.fill();
   });
 
-  drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery" });
+  drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery", seatPositions });
 
   // Loan officer — drawn behind the desk (gy=1.75) regardless of where the
   // customer routes (loanDeskPos at gy=2.4 is the customer's stop position).
@@ -747,10 +748,13 @@ export function renderFrame(ctx, renderState, ts) {
     .forEach(c=>{
       const{x,y}=toIso(c.gx,c.gy);
       const scale=c.role==="whale"?1.12:c.role==="robber"?1.05:0.92;
-      drawChibi(ctx,x,y,c,ts,{scale});
+      // Seated customers sit lower on screen so they read as "on the cushion"
+      // rather than standing in front of the chair.
+      const seatedOffset = c.seatedAt ? 5 : 0;
+      drawChibi(ctx,x,y+seatedOffset,c,ts,{scale});
       if (c.bubble&&c.bubbleTimer>0) {
         const bg=c.role==="robber"?"#ffcccc":c.role==="whale"?"#fff8d0":c.emotion==="angry"?"#ffe8d0":"#fffbee";
-        drawBubble(ctx,x,y-12*scale,c.bubble,bg);
+        drawBubble(ctx,x,y-12*scale+seatedOffset,c.bubble,bg);
       }
       drawInteractTimer(ctx, c, now);
     });

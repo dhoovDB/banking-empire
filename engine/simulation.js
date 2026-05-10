@@ -117,18 +117,32 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "waiting") {
-    // During a rush, waiting customers get more frustrated faster — under-staffed
-    // rushes produce visible walkouts. Player can still calm individuals by clicking.
-    const rushMult = activeEvent === "rush" ? (beh.rushFrustrationMultiplier || 1) : 1;
-    const newFrust = Math.min(1, char.frustration + frustDelta * rushMult + (char.baseAnger || 0) * 0.002);
-    if (activeEvent === "robbery" && randomFloat() < 0.004)
-      return { type: "FLEE", charId: char.id, reason: "robbery" };
-    if (newFrust > beh.walkoutThreshold && randomFloat() < beh.walkoutProbability)
-      return { type: "WALKOUT", charId: char.id };
+    // Priority 1: a teller/loan slot opened up — go serve. Releases seat too.
     if (activeEvent !== "outage") {
       const free = findFreeSlot(char, simState);
       if (free) return { type: "CLAIM_SLOT", charId: char.id, ...free };
     }
+    // Priority 2: robbery flee.
+    if (activeEvent === "robbery" && randomFloat() < 0.004)
+      return { type: "FLEE", charId: char.id, reason: "robbery" };
+    // Priority 3: claim a free seat if standing.
+    if (char.seatId == null && simState.seatPositions && simState.seatPositions.length > 0) {
+      const seatId = findFreeSeat(simState);
+      if (seatId !== null) return { type: "CLAIM_SEAT", charId: char.id, seatId };
+    }
+    // Priority 4: walk to claimed seat.
+    if (char.seatId != null && !char.seatedAt) {
+      const seatPos = simState.seatPositions[char.seatId];
+      if (!seatPos) return { type: "NOOP", charId: char.id };
+      if (isNear(char, seatPos)) return { type: "ARRIVE_AT_SEAT", charId: char.id };
+      return { type: "MOVE", charId: char.id, target: seatPos, speed: 0.040 };
+    }
+    // Priority 5: accrue frustration (slower if seated; faster during rush).
+    const rushMult   = activeEvent === "rush" ? (beh.rushFrustrationMultiplier || 1) : 1;
+    const seatedMult = char.seatedAt ? (beh.seatedFrustrationMultiplier ?? 1) : 1;
+    const newFrust   = Math.min(1, char.frustration + frustDelta * rushMult * seatedMult + (char.baseAnger || 0) * 0.002);
+    if (newFrust > beh.walkoutThreshold && randomFloat() < beh.walkoutProbability)
+      return { type: "WALKOUT", charId: char.id };
     return { type: "UPDATE_FRUSTRATION", charId: char.id, newFrust,
              newEmotion: frustEmotion(newFrust, beh) };
   }
@@ -184,6 +198,7 @@ export function applyCommand(command, char, simState) {
     case "CLAIM_SLOT": {
       const newOccupied = new Set(simState.occupiedTellerSlots);
       if (!command.useLoanDesk) newOccupied.add(command.tellerIndex);
+      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
       return {
         updatedChar: {
           ...char,
@@ -192,16 +207,42 @@ export function applyCommand(command, char, simState) {
           useLoanDesk: command.useLoanDesk || false,
           isMoving: true,
           nextWaypoint: command.useLoanDesk ? simState.loanBypassWaypoint : null,
+          seatId: null,
+          seatedAt: false,
         },
-        stateDeltas: { occupiedTellerSlots: newOccupied, loanDeskOccupied: command.useLoanDesk ? true : simState.loanDeskOccupied },
+        stateDeltas: {
+          occupiedTellerSlots: newOccupied,
+          loanDeskOccupied:    command.useLoanDesk ? true : simState.loanDeskOccupied,
+          ...(releasedSeats && { occupiedSeats: releasedSeats }),
+        },
       };
     }
+    case "CLAIM_SEAT": {
+      const newOccupiedSeats = new Set(simState.occupiedSeats || []);
+      newOccupiedSeats.add(command.seatId);
+      return {
+        updatedChar: { ...char, seatId: command.seatId, seatedAt: false, isMoving: true },
+        stateDeltas: { occupiedSeats: newOccupiedSeats },
+      };
+    }
+    case "ARRIVE_AT_SEAT":
+      return { updatedChar: { ...char, seatedAt: true, isMoving: false }, stateDeltas: {} };
     case "UPDATE_FRUSTRATION":
       return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, isMoving: false }, stateDeltas: {} };
-    case "WALKOUT":
-      return { updatedChar: { ...char, state: "fleeing", emotion: "angry", isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
-    case "FLEE":
-      return { updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300, isMoving: true }, stateDeltas: { walkouts: simState.walkouts + 1 } };
+    case "WALKOUT": {
+      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
+      return {
+        updatedChar: { ...char, state: "fleeing", emotion: "angry", isMoving: true, seatId: null, seatedAt: false },
+        stateDeltas: { walkouts: simState.walkouts + 1, ...(releasedSeats && { occupiedSeats: releasedSeats }) },
+      };
+    }
+    case "FLEE": {
+      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
+      return {
+        updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300, isMoving: true, seatId: null, seatedAt: false },
+        stateDeltas: { walkouts: simState.walkouts + 1, ...(releasedSeats && { occupiedSeats: releasedSeats }) },
+      };
+    }
     case "START_SERVICE":
       return { updatedChar: { ...char, state: "served", progress: 0, emotion: "happy", isMoving: false }, stateDeltas: { activeTellers: new Set([...simState.activeTellers, command.tellerIndex]) } };
     case "COMPLETE_SERVICE": {
@@ -332,6 +373,25 @@ function findFreeSlot(char, simState) {
     if (!occupiedTellerSlots.has(i)) return { tellerIndex: i, useLoanDesk: false };
   }
   return null;
+}
+
+function findFreeSeat(simState) {
+  const seats = simState.seatPositions || [];
+  const occupied = simState.occupiedSeats || new Set();
+  for (let i = 0; i < seats.length; i++) {
+    if (!occupied.has(i)) return i;
+  }
+  return null;
+}
+
+// Returns a new Set with seatId removed, or null if no seat was held.
+// Callers spread `...(result && { occupiedSeats: result })` to skip the
+// stateDelta entirely when nothing changed.
+function releaseSeatIfHeld(simState, seatId) {
+  if (seatId == null) return null;
+  const next = new Set(simState.occupiedSeats || []);
+  next.delete(seatId);
+  return next;
 }
 
 function isNear(char, target) {

@@ -131,6 +131,10 @@ export const CUSTOMER_BEHAVIOUR = {
   // During an active rush event, frustration grows faster — under-staffed
   // rushes produce 1-2 walkouts; calm rushes (staffed for peak) survive intact.
   rushFrustrationMultiplier: 2.0,
+  // Seated customers accumulate frustration at this fraction of the standing
+  // rate. The whole point of paying for seats: a seated rush is survivable
+  // where a standing rush walks out.
+  seatedFrustrationMultiplier: 0.4,
   walkoutThreshold:         0.88,
   walkoutProbability:       0.006,
   angryThreshold:           0.72,

@@ -67,6 +67,16 @@ const LOAN_DESK_POS = {gx:2.2, gy:2.4};
 // waypoint (left of counter at gx<2.4, in front of counter at gy>3.05).
 // Used on both advancing (queue → loan desk) and leaving (loan desk → exit).
 const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
+// Waiting-seat tile positions. Engine claims seats by index; renderer draws a
+// chair at each. Era 1 ships 3 seats (DEFAULT_FACILITIES.waitingSeats); era 2+
+// can buy up to 10 via the SetupScreen stepper. Front row matches the original
+// 5-chair layout; back row added for era 2 purchases.
+const SEAT_POSITIONS = [
+  {gx:1.5, gy:3.50}, {gx:1.9, gy:3.50}, {gx:2.3, gy:3.50},
+  {gx:2.7, gy:3.50}, {gx:3.1, gy:3.50},
+  {gx:1.5, gy:3.85}, {gx:1.9, gy:3.85}, {gx:2.3, gy:3.85},
+  {gx:2.7, gy:3.85}, {gx:3.1, gy:3.85},
+];
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
@@ -138,12 +148,13 @@ export default function BankingEmpire() {
         queueLength: s.chars.filter(c => c.state === "waiting").length,
         greets:      s.greets || 0,
       },
-      queueSlots:   QUEUE_SLOTS,
-      tellerSlots:  TELLER_SLOTS,
-      loanDeskPos:  LOAN_DESK_POS,
+      queueSlots:    QUEUE_SLOTS,
+      tellerSlots:   TELLER_SLOTS,
+      loanDeskPos:   LOAN_DESK_POS,
+      seatPositions: simState.current?.seatPositions ?? [],
       tellerRoster,
       loanOfficerRoster,
-      hoveredChar:  hovered,
+      hoveredChar:   hovered,
     }, ts);
 
     animRef.current = requestAnimationFrame(renderLoop);
@@ -279,6 +290,8 @@ export default function BankingEmpire() {
       loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
       occupiedTellerSlots: new Set(),
       loanDeskOccupied:    false,
+      seatPositions:       SEAT_POSITIONS.slice(0, fac.waitingSeats),
+      occupiedSeats:       new Set(),
       inspectorDistracted: false,
       clickedCharIds:      new Set(),
       pendingRushSpawns:   0,

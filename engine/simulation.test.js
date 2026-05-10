@@ -291,3 +291,115 @@ describe("rush frustration multiplier", () => {
     expect(rushGrowth / baselineGrowth).toBeCloseTo(2.0, 1);
   });
 });
+
+// ─── WAITING SEATS ───────────────────────────────────────────────────────────
+// Seats are an actual gameplay lever, not cosmetic. A waiting customer should
+// claim a free seat, sit down, and accumulate frustration slower while seated.
+// Releasing the seat happens on CLAIM_SLOT (teller free), WALKOUT, or FLEE.
+
+describe("waiting seats", () => {
+  function makeWaitingChar(overrides = {}) {
+    return {
+      id: 30, role: "customer", state: "waiting",
+      gx: 3.5, gy: 4.0, frustration: 0.5, baseAnger: 0,
+      seatId: null, seatedAt: false,
+      ...overrides,
+    };
+  }
+
+  function withSeats(overrides = {}) {
+    return makeSimState({
+      occupiedTellerSlots: new Set([0, 1]), // no teller free
+      seatPositions: [
+        { gx: 1.5, gy: 3.5 },
+        { gx: 1.9, gy: 3.5 },
+        { gx: 2.3, gy: 3.5 },
+      ],
+      occupiedSeats: new Set(),
+      ...overrides,
+    });
+  }
+
+  it("waiting customer claims a free seat", () => {
+    const simState = withSeats();
+    const char = makeWaitingChar();
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SEAT");
+    expect(cmd.seatId).toBe(0);
+  });
+
+  it("CLAIM_SEAT marks the seat occupied and sets seatId on the customer", () => {
+    const simState = withSeats();
+    const char = makeWaitingChar();
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.seatId).toBe(0);
+    expect(updatedChar.seatedAt).toBe(false); // not arrived yet
+    expect(stateDeltas.occupiedSeats.has(0)).toBe(true);
+  });
+
+  it("customer with claimed seat walks toward it", () => {
+    const simState = withSeats({ occupiedSeats: new Set([0]) });
+    const char = makeWaitingChar({ seatId: 0, gx: 3.5, gy: 4.0 });
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("MOVE");
+    expect(cmd.target).toEqual(simState.seatPositions[0]);
+  });
+
+  it("customer arriving at seat emits ARRIVE_AT_SEAT", () => {
+    const simState = withSeats({ occupiedSeats: new Set([0]) });
+    const char = makeWaitingChar({ seatId: 0, gx: 1.5, gy: 3.5 });
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("ARRIVE_AT_SEAT");
+  });
+
+  it("seated customer accumulates frustration slower than standing customer", () => {
+    const simState = withSeats({ seatPositions: [], occupiedSeats: new Set() }); // no seats — force standing path
+    const standingState = makeSimState({ occupiedTellerSlots: new Set([0, 1]) });
+    const seatedState   = makeSimState({ occupiedTellerSlots: new Set([0, 1]) });
+    const standing = makeWaitingChar({ seatedAt: false });
+    const seated   = makeWaitingChar({ seatedAt: true });
+
+    const standingCmd = evaluateCharacter(standing, standingState, makePolicy());
+    const seatedCmd   = evaluateCharacter(seated,   seatedState,   makePolicy());
+
+    expect(standingCmd.type).toBe("UPDATE_FRUSTRATION");
+    expect(seatedCmd.type).toBe("UPDATE_FRUSTRATION");
+    const standingGrowth = standingCmd.newFrust - standing.frustration;
+    const seatedGrowth   = seatedCmd.newFrust   - seated.frustration;
+    expect(seatedGrowth).toBeLessThan(standingGrowth);
+    // 0.4× multiplier configured in CUSTOMER_BEHAVIOUR
+    expect(seatedGrowth / standingGrowth).toBeCloseTo(0.4, 1);
+  });
+
+  it("CLAIM_SLOT releases the customer's seat", () => {
+    const simState = withSeats({
+      occupiedTellerSlots: new Set(),  // teller 0 now free
+      occupiedSeats:       new Set([1]),
+    });
+    const char = makeWaitingChar({ seatId: 1, seatedAt: true });
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SLOT");
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.seatId).toBeNull();
+    expect(updatedChar.seatedAt).toBe(false);
+    expect(stateDeltas.occupiedSeats.has(1)).toBe(false);
+  });
+
+  it("WALKOUT releases the customer's seat", () => {
+    const simState = withSeats({ occupiedSeats: new Set([2]) });
+    const char = makeWaitingChar({ seatId: 2, seatedAt: true });
+    const cmd = { type: "WALKOUT", charId: char.id };
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.state).toBe("fleeing");
+    expect(updatedChar.seatId).toBeNull();
+    expect(stateDeltas.occupiedSeats.has(2)).toBe(false);
+  });
+
+  it("no seat claim when all seats occupied — falls through to frustration", () => {
+    const simState = withSeats({ occupiedSeats: new Set([0, 1, 2]) });
+    const char = makeWaitingChar();
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("UPDATE_FRUSTRATION");
+  });
+});
