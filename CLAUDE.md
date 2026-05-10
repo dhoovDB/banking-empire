@@ -315,3 +315,40 @@ Additional rules:
 - Never assume a push happened unless git push ran and returned no errors in this session
 - If asked "is this on GitHub?" — the answer is yes only if git push ran successfully in this session
 - If the session was interrupted or restarted, git status must be run before reporting any git state
+
+---
+
+## Git commit practices
+
+**One logical change per commit.** Each commit should be a coherent unit you
+could describe in one sentence. The signal that two changes belong in separate
+commits: you'd want two separate sentences in the commit message. Size is a
+weak signal — a 500-line refactor that does one thing is fine; a 50-line
+commit that mixes a bug fix and an unrelated rename is two commits.
+
+Why it matters:
+- **Bisecting.** `git bisect` finds the commit that introduced a bug. Mixed
+  commits hide the cause.
+- **Reverting.** A surgical revert undoes one change without losing unrelated
+  work. Bundled commits force all-or-nothing.
+- **History reads as a story.** `git log` should explain what happened, not
+  list "various updates."
+
+**Commit voice — whimsical and narrative, not dry technical bullets.** Match
+the existing log: "The till empties when you hire, not when you tally" beats
+"fix: deduct hire costs at sim start." Lead with the change as a tiny story.
+The body can list specifics, but the subject line is a sentence in the
+project's voice.
+
+**Commit when each logical piece lands, not in batches.** If you finish a
+feature, commit it before starting the next. Avoid the "commit a day's worth
+of work in one go" pattern — it bundles unrelated changes by accident and
+makes the next session's history harder to read.
+
+**Never commit without approval.** "Sounds good" is not approval. "Go ahead"
+or "commit it" is approval. Same rule as feature scope (see Delegation).
+
+**Always update ROADMAP.md before committing** — already required by Status
+Reporting, repeated here because git practice and roadmap practice are
+linked. Roadmap drift is invisible until you go looking; commit-level
+discipline is what keeps it out.
