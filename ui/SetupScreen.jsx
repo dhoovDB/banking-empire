@@ -201,16 +201,29 @@ export default function SetupScreen({ fin, staff, fac, policy, committed, onStaf
 
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
-              <span>Waiting Seats</span><span style={{ color: C.gold }}>{fac.waitingSeats} × $500</span>
+              <span>Waiting Seats</span>
+              <span style={{ color: fin.era < 2 ? C.dim : C.gold }}>
+                {fin.era < 2 ? `${fac.waitingSeats} included` : `${fac.waitingSeats} × $500`}
+              </span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => onFacChange("waitingSeats", Math.max(0, fac.waitingSeats - 1))} style={btnSm} disabled={fac.waitingSeats <= 0}>−</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: fin.era < 2 ? 0.4 : 1 }}>
+              <button
+                onClick={fin.era < 2 ? undefined : () => onFacChange("waitingSeats", Math.max(0, fac.waitingSeats - 1))}
+                style={{ ...btnSm, cursor: fin.era < 2 ? "not-allowed" : "pointer", pointerEvents: fin.era < 2 ? "none" : "auto" }}
+                disabled={fin.era < 2 || fac.waitingSeats <= 0}>−</button>
               <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3 }}>
                 <div style={{ height: "100%", width: `${(fac.waitingSeats / 10) * 100}%`, background: C.gold, borderRadius: 3 }} />
               </div>
-              <button onClick={() => onFacChange("waitingSeats", Math.min(10, fac.waitingSeats + 1))} style={btnSm} disabled={fac.waitingSeats >= 10}>+</button>
+              <button
+                onClick={fin.era < 2 ? undefined : () => onFacChange("waitingSeats", Math.min(10, fac.waitingSeats + 1))}
+                style={{ ...btnSm, cursor: fin.era < 2 ? "not-allowed" : "pointer", pointerEvents: fin.era < 2 ? "none" : "auto" }}
+                disabled={fin.era < 2 || fac.waitingSeats >= 10}>+</button>
             </div>
-            <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>More seats → less frustration during rush events</div>
+            <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>
+              {fin.era < 2
+                ? "Unlocks Era 2 — era 1 includes 3 seats. More seats → less frustration during rush events."
+                : "More seats → less frustration during rush events"}
+            </div>
           </div>
 
           <div style={{ marginTop: 14, padding: "8px 10px", background: "rgba(0,0,0,0.25)", borderRadius: 6, fontSize: 12 }}>

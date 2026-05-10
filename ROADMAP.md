@@ -91,11 +91,13 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 ### 2. Setup screen clarity
 *Problem: players don't understand what they're buying.*
 
-- [ ] **Vault era lock** — vault levels 2 and 3 should be visually greyed out
-      in era 1 with "Unlocks Era 2" label.
-- [ ] **Waiting seats era lock** — waiting-seat upgrades currently chargeable
-      in era 1. Per design intent (era 1 = staff only, facilities = era 2),
-      lock the +/- buttons in era 1 with the same pattern as the vault lock.
+- [x] **Vault era lock** — already shipped earlier (vault levels 2 and 3
+      grey out with "Unlocks Era 2" label in era 1). Verified in
+      `ui/SetupScreen.jsx`; roadmap entry was just stale. (2026-05-10)
+- [x] **Waiting seats era lock** — +/- stepper greys out in era 1 with
+      "Unlocks Era 2" copy and the same locked treatment as the vault.
+      Era 1 ships with the 3 default seats; player can't change the count
+      until era 2. (2026-05-10)
 
 ### 3. Financial correctness minimums
 *Problem: the game gives players incorrect signals about their starting position
@@ -349,6 +351,7 @@ They display as locked teasers, not active options.
 - [x] Deployed to GitHub Pages — vite.config.js base path set to `/banking-empire/`, `gh-pages` dev dep + `npm run deploy` script, live at https://dhoovdb.github.io/banking-empire/. Auto-deploy via GitHub Actions captured as MEDIUM TERM follow-up. (2026-05-08)
 - [x] Loan officer visuals — live chibi from `loanOfficerRoster` draws behind the desk when hired (no longer translucent); `LOAN_DESK_POS` shifted to gy=2.4 so customer stops in front of desk and officer behind, matching the teller geometry. (2026-05-08)
 - [x] Rush walkout sensitivity — added `rushFrustrationMultiplier: 2.0` to `CUSTOMER_BEHAVIOUR`; `evaluateCharacter` waiting state applies it when `activeEvent === "rush"`. Under-staffed rushes produce 1-2 walkouts; calm play unchanged. 2 tests added; 68/68 passing. (2026-05-08)
+- [x] Waiting seats era lock — `ui/SetupScreen.jsx` greys out the +/- stepper in era 1 with the same locked treatment as the vault levels. Era 1 keeps the 3 default seats (free); era 2+ unlocks purchases. Vault era lock entry was already shipped — moved to Completed alongside. (2026-05-10)
 
 ---
 
