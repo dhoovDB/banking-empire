@@ -73,6 +73,15 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       position made it more visible but didn't fix the underlying math. Redraw
       with consistent iso depth (top face, front face, side faces all using
       the same per-pixel-per-grid-unit ratio).
+- [ ] **Rearrange visuals — waiting seats, teller desk, and loan officer
+      desk are crowded in the middle** — all three serving zones cluster in
+      the gx 1.5–5 strip with chairs, queue lanes, and counters layered on
+      top of each other. The eye should read three distinct service areas.
+      Options: push the loan desk further left (or to the back wall),
+      relocate waiting seats to one side instead of dead-center, or widen
+      the teller counter span so the rest can breathe. Decide a layout
+      pass before adding more chairs (era 2 seat purchases) or a second
+      loan officer.
 
 ### 1d. Latent bug found during plan exploration
 
