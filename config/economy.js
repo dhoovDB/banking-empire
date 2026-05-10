@@ -127,15 +127,18 @@ export const POLICY_IMPACTS = {
 
 // ─── CUSTOMER BEHAVIOUR ───────────────────────────────────────────────────────
 export const CUSTOMER_BEHAVIOUR = {
-  frustrationGrowthRate:  0.0008,
-  walkoutThreshold:       0.88,
-  walkoutProbability:     0.006,
-  angryThreshold:         0.72,
-  worriedThreshold:       0.42,
-  robberyFleeChance:      0.4,
-  depositRange:           { min: 1500,  max: 10000 },
-  loanRange:              { min: 8000,  max: 50000 },
-  loanApplicationChance:  0.4,
+  frustrationGrowthRate:    0.0008,
+  // During an active rush event, frustration grows faster — under-staffed
+  // rushes produce 1-2 walkouts; calm rushes (staffed for peak) survive intact.
+  rushFrustrationMultiplier: 2.0,
+  walkoutThreshold:         0.88,
+  walkoutProbability:       0.006,
+  angryThreshold:           0.72,
+  worriedThreshold:         0.42,
+  robberyFleeChance:        0.4,
+  depositRange:             { min: 1500,  max: 10000 },
+  loanRange:                { min: 8000,  max: 50000 },
+  loanApplicationChance:    0.4,
 };
 
 // ─── CONCENTRATION RISK ───────────────────────────────────────────────────────

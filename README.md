@@ -12,7 +12,7 @@ understand React architecture better.
 
 ## Play it
 
-> [Live demo link]
+**[https://dhoovdb.github.io/banking-empire/](https://dhoovdb.github.io/banking-empire/)**
 
 - **Era 1:** Community Bank — master NIM, CAR, and NPL basics
 - **Era 2:** Regional Bank — Fed rate decisions, product expansion
@@ -117,8 +117,6 @@ respond — or the market forces a default outcome. Inaction is a choice.
 
 Full roadmap in `ROADMAP.md`. Highlights:
 
-- Hosted demo — deploy to GitHub Pages or Vercel so the game is playable
-  without cloning the repo
 - Era 3 and 4 content — commercial banking, fintech challenger, acquisition events
 - Tiered staffing model for era 3+ (regional hubs replace individual tellers)
 - Infrastructure assets replacing physical branch upgrades at scale

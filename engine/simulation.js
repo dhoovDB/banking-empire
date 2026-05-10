@@ -117,7 +117,10 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "waiting") {
-    const newFrust = Math.min(1, char.frustration + frustDelta + (char.baseAnger || 0) * 0.002);
+    // During a rush, waiting customers get more frustrated faster — under-staffed
+    // rushes produce visible walkouts. Player can still calm individuals by clicking.
+    const rushMult = activeEvent === "rush" ? (beh.rushFrustrationMultiplier || 1) : 1;
+    const newFrust = Math.min(1, char.frustration + frustDelta * rushMult + (char.baseAnger || 0) * 0.002);
     if (activeEvent === "robbery" && randomFloat() < 0.004)
       return { type: "FLEE", charId: char.id, reason: "robbery" };
     if (newFrust > beh.walkoutThreshold && randomFloat() < beh.walkoutProbability)

@@ -252,3 +252,42 @@ describe("loan bypass waypoint", () => {
     expect(cmd.target).toEqual(simState.loanBypassWaypoint);
   });
 });
+
+// ─── RUSH FRUSTRATION ────────────────────────────────────────────────────────
+// During a rush, waiting customers' frustration grows faster — under-staffed
+// rushes should produce walkouts where calm play would not.
+
+describe("rush frustration multiplier", () => {
+  function makeWaitingChar(overrides = {}) {
+    return {
+      id: 20, role: "customer", state: "waiting",
+      gx: 3.5, gy: 4.0, frustration: 0.5, baseAnger: 0,
+      ...overrides,
+    };
+  }
+
+  it("non-rush waiting customer accumulates baseline frustration", () => {
+    const simState = makeSimState({ activeEvent: null, occupiedTellerSlots: new Set([0, 1]) });
+    const char = makeWaitingChar();
+    const cmd = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("UPDATE_FRUSTRATION");
+    const baselineFrustGrowth = cmd.newFrust - char.frustration;
+    expect(baselineFrustGrowth).toBeGreaterThan(0);
+    expect(baselineFrustGrowth).toBeLessThan(0.01);
+  });
+
+  it("rush waiting customer accumulates frustration faster than baseline", () => {
+    const simStateBaseline = makeSimState({ activeEvent: null, occupiedTellerSlots: new Set([0, 1]) });
+    const simStateRush     = makeSimState({ activeEvent: "rush", occupiedTellerSlots: new Set([0, 1]) });
+    const char = makeWaitingChar();
+
+    const cmdBaseline = evaluateCharacter(char, simStateBaseline, makePolicy());
+    const cmdRush     = evaluateCharacter(char, simStateRush,     makePolicy());
+
+    const baselineGrowth = cmdBaseline.newFrust - char.frustration;
+    const rushGrowth     = cmdRush.newFrust     - char.frustration;
+    // Rush should grow ~2x faster (rushFrustrationMultiplier = 2.0).
+    expect(rushGrowth).toBeGreaterThan(baselineGrowth);
+    expect(rushGrowth / baselineGrowth).toBeCloseTo(2.0, 1);
+  });
+});

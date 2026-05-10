@@ -684,7 +684,8 @@ function drawInteractTimer(ctx, char, now) {
 // ─── MAIN RENDER FRAME ────────────────────────────────────────────────────────
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
-          hudState, queueSlots, tellerSlots, loanDeskPos, tellerRoster, hoveredChar } = renderState;
+          hudState, queueSlots, tellerSlots, loanDeskPos, tellerRoster,
+          loanOfficerRoster, hoveredChar } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
   // Soft warm spotlight
@@ -708,8 +709,18 @@ export function renderFrame(ctx, renderState, ts) {
 
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery" });
 
-  // Ghost unlockable staff
-  if (staff.loanOfficers===0) { const p=toIso(loanDeskPos?.gx??2.2, loanDeskPos?.gy??2.0); drawChibi(ctx,p.x,p.y-8,{id:900,role:"teller",skinTone:"#c47840",hairColor:"#2c1810",outfitColor:"#3a6a4a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  // Loan officer — drawn behind the desk (gy=1.75) regardless of where the
+  // customer routes (loanDeskPos at gy=2.4 is the customer's stop position).
+  // Ghost when unhired; live named chibi when staff.loanOfficers > 0.
+  {
+    const p = toIso(2.2, 1.75);
+    if (staff.loanOfficers === 0) {
+      drawChibi(ctx, p.x, p.y-8, {id:900, role:"teller", skinTone:"#c47840", hairColor:"#2c1810", outfitColor:"#3a6a4a", isMoving:false, emotion:"neutral"}, ts, {ghost:true, scale:0.85});
+    } else if (loanOfficerRoster && loanOfficerRoster.length > 0) {
+      const def = loanOfficerRoster[0];
+      drawChibi(ctx, p.x, p.y-8, {id:910, role:"teller", skinTone:def.skin, hairColor:def.hair, outfitColor:def.outfit, isMoving:false, emotion:"neutral"}, ts, {scale:0.9});
+    }
+  }
   if (staff.security===0)     { const p=toIso(2.5,1.05);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {

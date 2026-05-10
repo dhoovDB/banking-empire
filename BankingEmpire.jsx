@@ -60,7 +60,9 @@ const TELLER_SLOTS = [
 const EXIT_POS      = {gx:3.5, gy:5.8}; // exit through entrance row
 const VAULT_POS     = {gx:5.0, gy:1.5};
 const MGR_POS       = {gx:1.2, gy:2.0};
-const LOAN_DESK_POS = {gx:2.2, gy:2.0}; // loan officer desk — right of manager
+// Loan customer service position — in front of the desk drawing (which is centered at gy≈2.0).
+// The loan officer chibi draws behind the desk via a fixed offset in renderer/canvas.js.
+const LOAN_DESK_POS = {gx:2.2, gy:2.4};
 // Loan customers route around the left end of the teller counter via this
 // waypoint (left of counter at gx<2.4, in front of counter at gy>3.05).
 // Used on both advancing (queue → loan desk) and leaving (loan desk → exit).
@@ -90,9 +92,12 @@ export default function BankingEmpire() {
   const [report,    setReport]    = useState(null);
   const [history,   setHistory]   = useState([]);
 
-  // Stable teller roster for the session
+  // Stable teller and loan officer rosters for the session
   const [tellerRoster] = useState(() =>
     Array.from({ length: 6 }, () => createStaffMember("teller", []))
+  );
+  const [loanOfficerRoster] = useState(() =>
+    Array.from({ length: 3 }, () => createStaffMember("teller", []))
   );
 
   const canvasRef  = useRef(null);
@@ -137,11 +142,12 @@ export default function BankingEmpire() {
       tellerSlots:  TELLER_SLOTS,
       loanDeskPos:  LOAN_DESK_POS,
       tellerRoster,
+      loanOfficerRoster,
       hoveredChar:  hovered,
     }, ts);
 
     animRef.current = requestAnimationFrame(renderLoop);
-  }, [staff, tellerRoster]);
+  }, [staff, tellerRoster, loanOfficerRoster]);
 
   // ── CANVAS POINTER HANDLERS ─────────────────────────────────────────────────
   const getCanvasPoint = (evt) => {

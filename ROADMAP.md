@@ -61,11 +61,13 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       Reduce to roughly half a tile per teller window so the counter reads as
       a service desk rather than a wall. (Slot gy already shifted forward as
       part of the pathfinding fix above; only the counter width remains.)
-- [ ] **Loan officer + customer share one desk** — the loan officer chibi is
-      drawn at one position and customers route to a different one. Sync the
-      draw position to `LOAN_DESK_POS` (or vice versa) so they meet at the
-      same tile. (Pathing is fixed via the bypass waypoint as of 2026-05-05;
-      this remaining item is the visual desk-coincidence problem.)
+- [x] **Loan officer + customer share one desk** — fixed 2026-05-08. Same
+      pattern as the teller fix: `LOAN_DESK_POS` shifted from gy=2.0 (where
+      desk visual sits) to gy=2.4 (in front of desk). Live loan officer chibi
+      now draws at gy=1.75 (behind desk) when `staff.loanOfficers > 0`; ghost
+      stays in the same back-of-desk position when unhired. Hired officer is
+      a real opaque named chibi from the new `loanOfficerRoster`, not a
+      translucent placeholder.
 - [ ] **Vault dimensionality** — the vault still breaks the iso projection
       (depth not consistent with the rest of the room). The new gx=5.0, gy=1.5
       position made it more visible but didn't fix the underlying math. Redraw
@@ -110,10 +112,10 @@ and doesn't enforce consequences for bad decisions.*
 ### 4. Deploy to GitHub Pages
 *Problem: no one can play the game without cloning the repo.*
 
-- [ ] Add `base: '/banking-empire/'` to vite.config.js
-- [ ] Run `npm run build` and deploy `dist/` to gh-pages branch
-- [ ] Replace `[Live demo link]` placeholder in README.md
-- [ ] Verify it loads on desktop (mobile acceptable to skip for v1)
+- [x] Add `base: '/banking-empire/'` to vite.config.js (2026-05-08)
+- [x] Run `npm run build` and deploy `dist/` to gh-pages branch — used `gh-pages` npm package; `npm run deploy` builds and pushes (2026-05-08)
+- [x] Replace `[Live demo link]` placeholder in README.md with https://dhoovdb.github.io/banking-empire/ (2026-05-08)
+- [x] Verify it loads on desktop — confirmed 200 OK on index.html and assets (2026-05-08)
 
 ### 5. README demo video
 *Problem: a hiring manager won't clone a repo to evaluate a portfolio piece.*
@@ -134,9 +136,18 @@ and doesn't enforce consequences for bad decisions.*
       `<canvas>` element — this is for the React UI surrounding it.
       Item #6 in the 2026-05-03 playthrough sequence.
 
+### Deploy automation
+
+- [ ] **GitHub Actions auto-deploy on push to master** — currently the
+      gh-pages branch updates only when someone runs `npm run deploy`
+      locally (added 2026-05-08). Replace with a workflow at
+      `.github/workflows/deploy.yml` that builds and deploys on every push.
+      Worth doing once playthrough churn slows down — until then the
+      manual script is fine and avoids CI debugging on small changes.
+
 ### Gameplay loop improvements
 
-- [ ] **Loan officer roster on canvas** — when loan officers > 0, draw a named chibi at the loan desk (same pattern as teller roster). Currently the ghost disappears but no live character replaces it.
+- [x] **Loan officer roster on canvas** — when loan officers > 0, named chibi from `loanOfficerRoster` draws at the loan desk (back side). Ghost stays for the unhired case. (2026-05-08)
 
 - [ ] **Inspector click feedback in UI** — when inspector is distracted, show a banner or log entry confirming the fine amount was reduced (e.g. "Fine reduced to $1,250"). Player currently has to wait for the report screen to see the effect.
 
@@ -335,6 +346,9 @@ They display as locked teasers, not active options.
 - [x] No more walk-through teller desk — customer service position shifted from inside counter (gy=2.7/2.85) to in front (gy=3.10); teller draw offset adjusted (-0.25 → -0.65) to keep teller behind counter back. Waypoint state machine deferred until a route genuinely needs obstacle avoidance. (2026-05-05)
 - [x] Loan customer hardcoded path around the teller counter — `nextWaypoint` field on customer state; `CLAIM_SLOT` with `useLoanDesk` sets the bypass point at (gx=1.9, gy=3.5); `COMPLETE_SERVICE` for loan customers sets it again on the way out; advancing/leaving states consume the waypoint before the final target. New `CLEAR_WAYPOINT` command. 5 tests added; 66/66 passing. (2026-05-05)
 - [x] Back and left walls disabled — commented out in renderer/canvas.js while the layout is being tuned; bring back by uncommenting. Entrance row stays. (2026-05-05)
+- [x] Deployed to GitHub Pages — vite.config.js base path set to `/banking-empire/`, `gh-pages` dev dep + `npm run deploy` script, live at https://dhoovdb.github.io/banking-empire/. Auto-deploy via GitHub Actions captured as MEDIUM TERM follow-up. (2026-05-08)
+- [x] Loan officer visuals — live chibi from `loanOfficerRoster` draws behind the desk when hired (no longer translucent); `LOAN_DESK_POS` shifted to gy=2.4 so customer stops in front of desk and officer behind, matching the teller geometry. (2026-05-08)
+- [x] Rush walkout sensitivity — added `rushFrustrationMultiplier: 2.0` to `CUSTOMER_BEHAVIOUR`; `evaluateCharacter` waiting state applies it when `activeEvent === "rush"`. Under-staffed rushes produce 1-2 walkouts; calm play unchanged. 2 tests added; 68/68 passing. (2026-05-08)
 
 ---
 
