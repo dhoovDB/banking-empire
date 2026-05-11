@@ -100,7 +100,11 @@ export function evaluateCharacter(char, simState, policy) {
     }
     if (char.state === "leaving") {
       if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-      return { type: "MOVE_TO_EXIT", charId: char.id };
+      // Speed matches the inspector's normal wander pace (0.032). Without it,
+      // MOVE_TO_EXIT falls through to applyCommand's 1.4 default — ~35× a
+      // normal walk — and the inspector flies off the canvas when leaving
+      // (either via INSPECTOR_DONE or via the player's distract click).
+      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.032 };
     }
   }
 
