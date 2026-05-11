@@ -69,13 +69,19 @@ const LOAN_DESK_POS = {gx:2.2, gy:2.4};
 const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
 // Waiting-seat tile positions. Engine claims seats by index; renderer draws a
 // chair at each. Era 1 ships 3 seats (DEFAULT_FACILITIES.waitingSeats); era 2+
-// can buy up to 10 via the SetupScreen stepper. Front row matches the original
-// 5-chair layout; back row added for era 2 purchases.
+// can buy up to 10 via the SetupScreen stepper.
+//
+// Layout: bottom-left cluster, deliberately away from the teller approach
+// zone (gx 2.4+) and the queue triangle (gx 2.7–4.3). Earlier positions at
+// gy=3.50/3.85, gx=1.5–3.1 ran the chairs right up against the counter,
+// which made the seated chibis visually merge with the teller backstage.
 const SEAT_POSITIONS = [
-  {gx:1.5, gy:3.50}, {gx:1.9, gy:3.50}, {gx:2.3, gy:3.50},
-  {gx:2.7, gy:3.50}, {gx:3.1, gy:3.50},
-  {gx:1.5, gy:3.85}, {gx:1.9, gy:3.85}, {gx:2.3, gy:3.85},
-  {gx:2.7, gy:3.85}, {gx:3.1, gy:3.85},
+  // Front row — closer to the entrance
+  {gx:0.9, gy:3.90}, {gx:1.3, gy:3.90}, {gx:1.7, gy:3.90},
+  {gx:2.1, gy:3.90}, {gx:2.5, gy:3.90},
+  // Back row — same columns, one half-tile back
+  {gx:0.9, gy:4.25}, {gx:1.3, gy:4.25}, {gx:1.7, gy:4.25},
+  {gx:2.1, gy:4.25}, {gx:2.5, gy:4.25},
 ];
 // Lobby tiles — overflow standing positions for when seats and the queue line
 // are both full. Each tile is uniquely claimed (same allocator pattern as

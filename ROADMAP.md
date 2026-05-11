@@ -51,6 +51,33 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 - [x] **Loan officer desk added** — LOAN_DESK_POS at gx:2.5, gy:2.4; loan customers route there separately from teller queue. (2026-05-02)
 - [x] **Customer spawn visibility** — superseded by the 6×5 grid overhaul. Spawn now lives at gy=5.8 just outside the gy=5 entrance row, so the doorway crossing reads cleanly. (2026-05-03)
 
+### 1e. Seat usage observation (from playthrough 2026-05-11)
+
+- [ ] **Only 1 of 3 chairs visibly used during a rush** — player observed
+      that with 3 default seats, only one chair appeared occupied at a time
+      during a rush, even with multiple customers waiting. Engine tests
+      confirm each waiter gets a unique seatId and CLAIM_SEAT correctly
+      tracks `occupiedSeats`, so the allocator itself is sound. Three
+      candidate explanations to verify next session:
+      - **Timing**: with era 1's single teller, customer A may finish
+        service before customer B finishes the walk to seat 1, so only
+        one seat is ever *visibly* occupied at a given moment. Not a bug,
+        just thin throughput. The chair-position shift (2026-05-11) may
+        also help by shortening the walk from queue to seat.
+      - **Visual overlap**: pre-shift, chairs at gy=3.50 sat right against
+        the teller counter back (gy≈2.45). The seated chibi's 5px sit
+        offset put it close enough to a teller chibi that the eye may
+        have read them as one figure. The 2026-05-11 chair move pushed
+        chairs to gy=3.90/4.25; if the issue resolves, this was the cause.
+      - **Engine bug**: would need a reproducer. No failing test exposes
+        it currently, but the playthrough was the source-of-truth and
+        shouldn't be dismissed. If the issue persists after the chair
+        move, write a test that simulates 3+ customers entering at once
+        with seats available and asserts all three seats are claimed and
+        arrived-at.
+      Action: retest after the chair shift; if still observed, write the
+      reproducer test and dig.
+
 ### 1c. Layout overhaul follow-ups (from playthrough feedback 2026-05-03)
 *The 6×5 grid + ISO_TW=192 overhaul shipped. These four items are the remaining*
 *pieces from the same playthrough — they all depend on the new grid being settled.*
@@ -383,6 +410,7 @@ They display as locked teasers, not active options.
 - [x] Waiting seats now matter — `SEAT_POSITIONS` array (10 tiles, two rows) lifted into BankingEmpire.jsx and threaded into both engine (`simState.seatPositions`) and renderer (`drawChairs(seatPositions)`). New `CLAIM_SEAT` / `ARRIVE_AT_SEAT` commands; waiting customers walk to a free seat and accumulate frustration at 0.4× standing rate (`seatedFrustrationMultiplier` in CUSTOMER_BEHAVIOUR). Seat releases on `CLAIM_SLOT`, `WALKOUT`, `FLEE`. Renderer draws the chibi with a sit-offset when `seatedAt`. 8 new tests; 76/76 passing. (2026-05-10)
 - [x] Customer bunching at entrance — root cause: queue-slot tiles were walk targets, not unique claims; multiple customers with the same `queuePos % 10` could share a tile, and once seats filled there was no fallback. Fixed by adding `LOBBY_POSITIONS` (9 overflow standing tiles near the entrance) threaded through `simState.lobbyPositions` and `occupiedLobby`. New `CLAIM_LOBBY` command + `findFreeLobby` / `releaseLobbyIfHeld` helpers. Waiting-state priority now: teller → flee → seat → lobby → frustration. Lobby releases on CLAIM_SLOT, CLAIM_SEAT, WALKOUT, FLEE. Chose this discrete-allocator approach (Shape B) over a per-tick collision rule (Shape A) because it matches the existing claim/release pattern and avoids deadlock risk. Shape A captured as medium-term follow-up. 11 new tests; 87/87 passing. (2026-05-11)
 - [x] Inspector exit speed fixed — `evaluateCharacter` returned `MOVE_TO_EXIT` with no speed when the inspector was leaving (either via INSPECTOR_DONE or the player's distract click), falling through to `applyCommand`'s 1.4-units-per-tick default — about 35× a normal walk. The inspector visibly flew off the canvas. Added `speed: 0.032` to match the inspector's normal wander pace. Pre-existing bug, not a regression. (2026-05-11)
+- [x] Waiting chairs moved bottom-left — `SEAT_POSITIONS` shifted from gx 1.5–3.1, gy 3.50/3.85 to gx 0.9–2.5, gy 3.90/4.25. The old layout sat the chairs right up against the teller counter back, where seated chibis visually merged with the teller backstage. New layout keeps chairs clear of the teller approach zone (gx 2.4+), the queue triangle (gx 2.7–4.3), and the corner plant at (0.7, 4.5). Side effect: shorter walk from queue to seat. Related observation about visible seat usage during a rush parked in §1e for next-session investigation. (2026-05-11)
 
 ---
 
