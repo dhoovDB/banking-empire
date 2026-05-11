@@ -77,6 +77,26 @@ const SEAT_POSITIONS = [
   {gx:1.5, gy:3.85}, {gx:1.9, gy:3.85}, {gx:2.3, gy:3.85},
   {gx:2.7, gy:3.85}, {gx:3.1, gy:3.85},
 ];
+// Lobby tiles — overflow standing positions for when seats and the queue line
+// are both full. Each tile is uniquely claimed (same allocator pattern as
+// seats and teller slots), which is what stops customers from stacking on
+// the same point during rush events. Positions continue the queue triangle
+// backward toward the entrance + flank the door funnel on both sides.
+//
+// We chose this discrete-tile approach (Shape B) over a per-tick personal-space
+// rule (Shape A) because it matches the architecture's existing claim/release
+// pattern and avoids the deadlock risks of physics-based collision. Shape A
+// is tracked in ROADMAP.md as a lower-priority follow-up. See engine/simulation.js
+// (waiting-state priority order) for where the lobby check is wired in.
+const LOBBY_POSITIONS = [
+  // Back of the queue line — extends the QUEUE_SLOTS triangle toward gy=5
+  {gx:3.5, gy:5.0},
+  {gx:3.1, gy:5.2}, {gx:3.9, gy:5.2},
+  {gx:2.7, gy:5.4}, {gx:4.3, gy:5.4},
+  // Door-flank standing — outside the queue funnel
+  {gx:1.8, gy:5.0}, {gx:5.2, gy:5.0},
+  {gx:1.8, gy:5.4}, {gx:5.2, gy:5.4},
+];
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
@@ -292,6 +312,8 @@ export default function BankingEmpire() {
       loanDeskOccupied:    false,
       seatPositions:       SEAT_POSITIONS.slice(0, fac.waitingSeats),
       occupiedSeats:       new Set(),
+      lobbyPositions:      LOBBY_POSITIONS,
+      occupiedLobby:       new Set(),
       inspectorDistracted: false,
       clickedCharIds:      new Set(),
       pendingRushSpawns:   0,

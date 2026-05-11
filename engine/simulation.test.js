@@ -403,3 +403,153 @@ describe("waiting seats", () => {
     expect(cmd.type).toBe("UPDATE_FRUSTRATION");
   });
 });
+
+// ─── LOBBY OVERFLOW ──────────────────────────────────────────────────────────
+// When teller and seat allocators are both exhausted, waiting customers should
+// each claim a unique lobby tile rather than stacking on one spot. This is the
+// "no walking through each other" guarantee (Shape B in ROADMAP).
+
+describe("lobby overflow positions", () => {
+  function makeWaitingChar(overrides = {}) {
+    return {
+      id: 50, role: "customer", state: "waiting",
+      gx: 3.5, gy: 4.0, frustration: 0.5, baseAnger: 0,
+      seatId: null, seatedAt: false, lobbyId: null,
+      ...overrides,
+    };
+  }
+
+  function withLobby(overrides = {}) {
+    return makeSimState({
+      occupiedTellerSlots: new Set([0, 1]),                  // teller full
+      seatPositions:       [{ gx: 1.5, gy: 3.5 }],
+      occupiedSeats:       new Set([0]),                     // seat full
+      lobbyPositions: [
+        { gx: 3.5, gy: 5.0 },
+        { gx: 3.1, gy: 5.2 },
+        { gx: 3.9, gy: 5.2 },
+      ],
+      occupiedLobby: new Set(),
+      ...overrides,
+    });
+  }
+
+  it("claims a lobby tile when no teller and no seat is available", () => {
+    const simState = withLobby();
+    const char    = makeWaitingChar();
+    const cmd     = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_LOBBY");
+    expect(cmd.lobbyId).toBe(0);
+  });
+
+  it("CLAIM_LOBBY marks the lobby occupied and sets lobbyId on customer", () => {
+    const simState = withLobby();
+    const char    = makeWaitingChar();
+    const cmd     = evaluateCharacter(char, simState, makePolicy());
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.lobbyId).toBe(0);
+    expect(stateDeltas.occupiedLobby.has(0)).toBe(true);
+  });
+
+  it("two customers cannot claim the same lobby tile", () => {
+    const simState = withLobby();
+    const a = makeWaitingChar({ id: 51 });
+    const cmdA = evaluateCharacter(a, simState, makePolicy());
+    const resultA = applyCommand(cmdA, a, simState);
+    // Apply the first claim's delta before evaluating the second customer
+    simState.occupiedLobby = resultA.stateDeltas.occupiedLobby;
+
+    const b = makeWaitingChar({ id: 52 });
+    const cmdB = evaluateCharacter(b, simState, makePolicy());
+    expect(cmdB.type).toBe("CLAIM_LOBBY");
+    expect(cmdB.lobbyId).not.toBe(cmdA.lobbyId);
+  });
+
+  it("customer with claimed lobby walks toward the tile", () => {
+    const simState = withLobby({ occupiedLobby: new Set([0]) });
+    const char    = makeWaitingChar({ lobbyId: 0, gx: 3.5, gy: 4.0 });
+    const cmd     = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("MOVE");
+    expect(cmd.target).toEqual(simState.lobbyPositions[0]);
+  });
+
+  it("seated customer keeps no lobby claim (seat is strictly preferred)", () => {
+    // Seat available → customer should claim seat, never lobby.
+    const simState = withLobby({ occupiedSeats: new Set() });
+    const char    = makeWaitingChar();
+    const cmd     = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SEAT");
+  });
+
+  it("CLAIM_SEAT from lobby releases the lobby tile", () => {
+    // Customer holds lobby; seat opens up; they should release lobby and claim seat.
+    const simState = withLobby({
+      occupiedSeats: new Set(),         // seat free
+      occupiedLobby: new Set([1]),      // customer holds lobby 1
+    });
+    const char = makeWaitingChar({ lobbyId: 1 });
+    const cmd  = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SEAT");
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.lobbyId).toBeNull();
+    expect(stateDeltas.occupiedLobby.has(1)).toBe(false);
+  });
+
+  it("CLAIM_SLOT releases the customer's lobby tile", () => {
+    const simState = withLobby({
+      occupiedTellerSlots: new Set(),   // teller free
+      occupiedLobby:       new Set([1]),
+    });
+    const char = makeWaitingChar({ lobbyId: 1 });
+    const cmd  = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SLOT");
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.lobbyId).toBeNull();
+    expect(stateDeltas.occupiedLobby.has(1)).toBe(false);
+  });
+
+  it("WALKOUT releases the customer's lobby tile", () => {
+    const simState = withLobby({ occupiedLobby: new Set([2]) });
+    const char = makeWaitingChar({ lobbyId: 2 });
+    const cmd  = { type: "WALKOUT", charId: char.id };
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.state).toBe("fleeing");
+    expect(updatedChar.lobbyId).toBeNull();
+    expect(stateDeltas.occupiedLobby.has(2)).toBe(false);
+  });
+
+  it("FLEE releases the customer's lobby tile", () => {
+    const simState = withLobby({ occupiedLobby: new Set([0]) });
+    const char = makeWaitingChar({ lobbyId: 0 });
+    const cmd  = { type: "FLEE", charId: char.id, reason: "robbery" };
+    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
+    expect(updatedChar.lobbyId).toBeNull();
+    expect(stateDeltas.occupiedLobby.has(0)).toBe(false);
+  });
+
+  it("all lobby tiles occupied — customer falls through to frustration accrual", () => {
+    const simState = withLobby({ occupiedLobby: new Set([0, 1, 2]) });
+    const char    = makeWaitingChar();
+    const cmd     = evaluateCharacter(char, simState, makePolicy());
+    expect(cmd.type).toBe("UPDATE_FRUSTRATION");
+  });
+
+  it("eight customers each get a unique lobby tile when seats + queue are saturated", () => {
+    // The rush-spawn worst case: 8 customers arrive at once with nowhere to sit
+    // and nowhere to be served. Each must get a unique standing tile.
+    const simState = withLobby({
+      lobbyPositions: Array.from({ length: 10 }, (_, i) => ({ gx: i, gy: 5 })),
+    });
+    const claimedIds = new Set();
+    for (let i = 0; i < 8; i++) {
+      const char = makeWaitingChar({ id: 60 + i });
+      const cmd  = evaluateCharacter(char, simState, makePolicy());
+      expect(cmd.type).toBe("CLAIM_LOBBY");
+      const { stateDeltas } = applyCommand(cmd, char, simState);
+      simState.occupiedLobby = stateDeltas.occupiedLobby;
+      expect(claimedIds.has(cmd.lobbyId)).toBe(false);
+      claimedIds.add(cmd.lobbyId);
+    }
+    expect(claimedIds.size).toBe(8);
+  });
+});

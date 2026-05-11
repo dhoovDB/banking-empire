@@ -37,10 +37,14 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 ### 1. Core simulation bugs
 *Problem: the sim loop has known issues that break the player experience.*
 
-- [ ] **Customer pathfinding — bunching at entrance** — customers queue near
-      the front door instead of spreading toward tellers. Re-evaluate after the
-      6×5 grid overhaul (slot positions changed). If still bunching, hardcoded
-      waypoints around the teller desk are the planned fix (see section 1c).
+- [x] **Customer pathfinding — bunching at entrance** — root cause was the
+      queue-slot tile being a *walk target*, not a *claim*: multiple customers
+      with the same `queuePos % QUEUE_SLOTS.length` could stand on the same
+      spot, and once seats filled there was no fallback. Fixed by adding a
+      `LOBBY_POSITIONS` overflow allocator (Shape B in the design discussion)
+      — when seats and queue are saturated, each waiting customer claims a
+      unique lobby tile via the same discrete-claim pattern as seats and
+      teller slots. (2026-05-11)
 - [x] **Customer movement too slow** — scaled all speed constants ×1.5 for ISO_TW=144. (2026-05-02)
 - [x] **Customers exit to corner** — EXIT_POS already corrected by prior Lovable change; confirmed working. (2026-05-02)
 - [x] **Inspector walks to corner** — inspector now wanders to teller desk and vault before leaving; no longer targets off-screen position. (2026-05-02)
@@ -157,6 +161,21 @@ and doesn't enforce consequences for bad decisions.*
       manual script is fine and avoids CI debugging on small changes.
 
 ### Gameplay loop improvements
+
+- [ ] **Per-tick personal-space rule (collision avoidance)** — the lobby
+      allocator (shipped 2026-05-11) prevents stacking *within waiting state*
+      by giving each waiter a unique tile. It does not prevent transient
+      overlap during transitions — e.g. a customer walking from queue to seat
+      can pass through another customer walking the opposite way. A per-tick
+      rule in `moveToward` (or its caller) that checks proposed steps against
+      other character positions and freezes/deflects on near-miss would close
+      this gap. Shape A in the original design discussion. Deferred because:
+      (a) the allocator fix covers the visible bunching that prompted the
+      task, (b) collision physics adds deadlock and tuning risk that the
+      discrete-allocator pattern avoids, and (c) the architecture already
+      treats positions as discrete claims, so adding a continuous-space rule
+      would be a new pattern in the engine. Worth picking up if transient
+      overlap becomes a recurring playtest complaint.
 
 - [x] **Loan officer roster on canvas** — when loan officers > 0, named chibi from `loanOfficerRoster` draws at the loan desk (back side). Ghost stays for the unhired case. (2026-05-08)
 
@@ -362,6 +381,7 @@ They display as locked teasers, not active options.
 - [x] Rush walkout sensitivity — added `rushFrustrationMultiplier: 2.0` to `CUSTOMER_BEHAVIOUR`; `evaluateCharacter` waiting state applies it when `activeEvent === "rush"`. Under-staffed rushes produce 1-2 walkouts; calm play unchanged. 2 tests added; 68/68 passing. (2026-05-08)
 - [x] Waiting seats era lock — `ui/SetupScreen.jsx` greys out the +/- stepper in era 1 with the same locked treatment as the vault levels. Era 1 keeps the 3 default seats (free); era 2+ unlocks purchases. Vault era lock entry was already shipped — moved to Completed alongside. (2026-05-10)
 - [x] Waiting seats now matter — `SEAT_POSITIONS` array (10 tiles, two rows) lifted into BankingEmpire.jsx and threaded into both engine (`simState.seatPositions`) and renderer (`drawChairs(seatPositions)`). New `CLAIM_SEAT` / `ARRIVE_AT_SEAT` commands; waiting customers walk to a free seat and accumulate frustration at 0.4× standing rate (`seatedFrustrationMultiplier` in CUSTOMER_BEHAVIOUR). Seat releases on `CLAIM_SLOT`, `WALKOUT`, `FLEE`. Renderer draws the chibi with a sit-offset when `seatedAt`. 8 new tests; 76/76 passing. (2026-05-10)
+- [x] Customer bunching at entrance — root cause: queue-slot tiles were walk targets, not unique claims; multiple customers with the same `queuePos % 10` could share a tile, and once seats filled there was no fallback. Fixed by adding `LOBBY_POSITIONS` (9 overflow standing tiles near the entrance) threaded through `simState.lobbyPositions` and `occupiedLobby`. New `CLAIM_LOBBY` command + `findFreeLobby` / `releaseLobbyIfHeld` helpers. Waiting-state priority now: teller → flee → seat → lobby → frustration. Lobby releases on CLAIM_SLOT, CLAIM_SEAT, WALKOUT, FLEE. Chose this discrete-allocator approach (Shape B) over a per-tick collision rule (Shape A) because it matches the existing claim/release pattern and avoids deadlock risk. Shape A captured as medium-term follow-up. 11 new tests; 87/87 passing. (2026-05-11)
 
 ---
 
