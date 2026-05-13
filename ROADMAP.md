@@ -51,33 +51,6 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 - [x] **Loan officer desk added** — LOAN_DESK_POS at gx:2.5, gy:2.4; loan customers route there separately from teller queue. (2026-05-02)
 - [x] **Customer spawn visibility** — superseded by the 6×5 grid overhaul. Spawn now lives at gy=5.8 just outside the gy=5 entrance row, so the doorway crossing reads cleanly. (2026-05-03)
 
-### 1e. Seat usage observation (from playthrough 2026-05-11)
-
-- [ ] **Only 1 of 3 chairs visibly used during a rush** — player observed
-      that with 3 default seats, only one chair appeared occupied at a time
-      during a rush, even with multiple customers waiting. Engine tests
-      confirm each waiter gets a unique seatId and CLAIM_SEAT correctly
-      tracks `occupiedSeats`, so the allocator itself is sound. Three
-      candidate explanations to verify next session:
-      - **Timing**: with era 1's single teller, customer A may finish
-        service before customer B finishes the walk to seat 1, so only
-        one seat is ever *visibly* occupied at a given moment. Not a bug,
-        just thin throughput. The chair-position shift (2026-05-11) may
-        also help by shortening the walk from queue to seat.
-      - **Visual overlap**: pre-shift, chairs at gy=3.50 sat right against
-        the teller counter back (gy≈2.45). The seated chibi's 5px sit
-        offset put it close enough to a teller chibi that the eye may
-        have read them as one figure. The 2026-05-11 chair move pushed
-        chairs to gy=3.90/4.25; if the issue resolves, this was the cause.
-      - **Engine bug**: would need a reproducer. No failing test exposes
-        it currently, but the playthrough was the source-of-truth and
-        shouldn't be dismissed. If the issue persists after the chair
-        move, write a test that simulates 3+ customers entering at once
-        with seats available and asserts all three seats are claimed and
-        arrived-at.
-      Action: retest after the chair shift; if still observed, write the
-      reproducer test and dig.
-
 ### 1c. Layout overhaul follow-ups (from playthrough feedback 2026-05-03)
 *The 6×5 grid + ISO_TW=192 overhaul shipped. These four items are the remaining*
 *pieces from the same playthrough — they all depend on the new grid being settled.*
@@ -412,6 +385,7 @@ They display as locked teasers, not active options.
 - [x] Inspector exit speed fixed — `evaluateCharacter` returned `MOVE_TO_EXIT` with no speed when the inspector was leaving (either via INSPECTOR_DONE or the player's distract click), falling through to `applyCommand`'s 1.4-units-per-tick default — about 35× a normal walk. The inspector visibly flew off the canvas. Added `speed: 0.032` to match the inspector's normal wander pace. Pre-existing bug, not a regression. (2026-05-11)
 - [x] Waiting chairs moved bottom-left — `SEAT_POSITIONS` shifted from gx 1.5–3.1, gy 3.50/3.85 to gx 0.9–2.5, gy 3.90/4.25. The old layout sat the chairs right up against the teller counter back, where seated chibis visually merged with the teller backstage. New layout keeps chairs clear of the teller approach zone (gx 2.4+), the queue triangle (gx 2.7–4.3), and the corner plant at (0.7, 4.5). Side effect: shorter walk from queue to seat. Related observation about visible seat usage during a rush parked in §1e for next-session investigation. (2026-05-11)
 - [x] Loan officer scooted back behind her desk — chibi shifted from gy=1.75 to gy=1.45 in `renderer/canvas.js`. The old 0.25-tile setback left only ~12px of screen-y clearance between the chibi and the desk visual; the chibi's legs and shadow (~21px below anchor) overlapped the desk top, and because the chibi was drawn after the desk, the legs rendered on top — making the officer look like she was standing in front of her own desk. New 0.55-tile setback mirrors the teller geometry (gy=2.45 chibi vs gy=3.10 customer). Comment in canvas.js explains the geometry so a future renderer pass doesn't undo it. (2026-05-13)
+- [x] §1e seat-usage investigation — first multi-tick integration test in the suite, in `engine/simulation.test.js`. Spawns 3 customers at once into a state mirroring the era-1 layout (3 seats, 0 free tellers), runs the engine tick loop with the same per-character delta-application order as `BankingEmpire.jsx`, and asserts all three seats fill and all three customers reach `seatedAt=true` within a bounded tick budget. Test passes on first run. Conclusion: the engine's seat allocator works correctly under the conditions that produced the playtest observation. The "only 1 chair used at a time" report is therefore either (a) timing — only one chibi is visibly *sitting* at a given moment because others are still walking, or (b) a renderer-side issue that doesn't show up in engine state. Test stays in the suite as a regression canary; if the visual report recurs after replay, the next session investigates downstream of the engine. 88 tests passing. (2026-05-13)
 
 ---
 

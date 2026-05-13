@@ -553,3 +553,125 @@ describe("lobby overflow positions", () => {
     expect(claimedIds.size).toBe(8);
   });
 });
+
+// ─── MULTI-TICK RUSH — DEFAULT 3 SEATS ALL FILL ──────────────────────────────
+// The first integration-style test in the suite. Existing tests verify single
+// commands in isolation; this one drives the full lifecycle —
+// entering → MOVE-to-queue → JOIN_WAIT → CLAIM_SEAT → MOVE-to-seat →
+// ARRIVE_AT_SEAT — across many ticks for three customers at once.
+//
+// Why it exists: a 2026-05-11 playthrough reported "3 chairs visible, only 1
+// used at a time during a rush." The engine unit tests (CLAIM_SEAT, uniqueness,
+// releases) all pass, so if the bug is real it lives somewhere the unit tests
+// don't reach — most likely the multi-character interleaving inside a single
+// tick. This test exercises exactly that path. Logged as ROADMAP §1e.
+
+describe("multi-tick rush — all 3 default seats fill correctly", () => {
+  // Mirror BankingEmpire.jsx layout constants so the test exercises the same
+  // geometry the live sim sees. A passing test with throwaway coordinates
+  // wouldn't say anything about what the player observed on the canvas.
+  const QUEUE_SLOTS = [
+    {gx:3.5,gy:4.0},
+    {gx:3.1,gy:4.2}, {gx:3.9,gy:4.2},
+    {gx:2.7,gy:4.4}, {gx:3.5,gy:4.4}, {gx:4.3,gy:4.4},
+    {gx:3.1,gy:4.6}, {gx:3.9,gy:4.6},
+    {gx:2.7,gy:4.8}, {gx:4.3,gy:4.8},
+  ];
+  const TELLER_SLOTS = [
+    {gx:2.4,gy:3.10}, {gx:2.95,gy:3.10}, {gx:3.5,gy:3.10},
+    {gx:4.05,gy:3.10}, {gx:4.6,gy:3.10}, {gx:5.15,gy:3.10},
+  ];
+  // The era-1 default — 3 seats, in their post-2026-05-11 bottom-left positions
+  const SEAT_POSITIONS = [
+    {gx:0.9, gy:3.90}, {gx:1.3, gy:3.90}, {gx:1.7, gy:3.90},
+  ];
+  const EXIT_POS             = {gx:3.5, gy:5.8};
+  const LOAN_DESK_POS        = {gx:2.2, gy:2.4};
+  const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
+
+  // 0 tellers forces every customer to JOIN_WAIT — the same state they'd be in
+  // mid-rush when the single era-1 teller is already serving someone.
+  function rushyState() {
+    return {
+      numTellers:          0,
+      activeEvent:         null,
+      loanOfficers:        0,
+      queueSlots:          QUEUE_SLOTS,
+      tellerSlots:         TELLER_SLOTS,
+      loanDeskPos:         LOAN_DESK_POS,
+      loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
+      exitPos:             EXIT_POS,
+      occupiedTellerSlots: new Set(),
+      loanDeskOccupied:    false,
+      activeTellers:       new Set(),
+      seatPositions:       SEAT_POSITIONS,
+      occupiedSeats:       new Set(),
+      lobbyPositions:      [],
+      occupiedLobby:       new Set(),
+      served:              0,
+      deposited:           0,
+      loans:               0,
+      walkouts:            0,
+      whaleServed:         false,
+      securityCount:       0,
+      vaultLevel:          1,
+      robberyLoss:         0,
+      clickedCharIds:      new Set(),
+      chars:               [],
+    };
+  }
+
+  // One tick — mirrors the loop in BankingEmpire.jsx exactly, including the
+  // crucial detail that stateDeltas are applied to simState between characters
+  // within the same tick (so char B sees char A's claim).
+  function tick(simState, policy) {
+    const next = [];
+    for (const char of simState.chars) {
+      const command = evaluateCharacter(char, simState, policy);
+      const { updatedChar, stateDeltas } = applyCommand(command, char, simState);
+      Object.entries(stateDeltas).forEach(([k, v]) => { simState[k] = v; });
+      if (updatedChar.state !== "exited") next.push(updatedChar);
+    }
+    simState.chars = next;
+  }
+
+  it("three customers spawned at once each claim a unique seat and arrive", () => {
+    const simState = rushyState();
+    simState.chars = [
+      createCustomer(0, 0, "customer"),
+      createCustomer(1, 1, "customer"),
+      createCustomer(2, 2, "customer"),
+    ];
+    // Force loanAmt=0 so randomness in createCustomer can't route anyone to the
+    // (nonexistent) loan desk. We're testing the seat path, not the loan path.
+    simState.chars.forEach(c => { c.loanAmt = 0; });
+
+    const policy = makePolicy();
+    const TICK_BUDGET = 400;
+    let ticksUsed = 0;
+    for (let i = 0; i < TICK_BUDGET; i++) {
+      tick(simState, policy);
+      ticksUsed = i + 1;
+      if (simState.chars.filter(c => c.seatedAt).length === 3) break;
+    }
+
+    // No one fled or walked out — all three still present
+    expect(simState.chars.length).toBe(3);
+    expect(simState.walkouts).toBe(0);
+
+    // All three seats claimed
+    expect(simState.occupiedSeats.size).toBe(3);
+    expect(simState.occupiedSeats.has(0)).toBe(true);
+    expect(simState.occupiedSeats.has(1)).toBe(true);
+    expect(simState.occupiedSeats.has(2)).toBe(true);
+
+    // All three customers actually arrived (seatedAt=true), with unique seatIds
+    const seated = simState.chars.filter(c => c.seatedAt);
+    expect(seated.length).toBe(3);
+    expect(new Set(seated.map(c => c.seatId)).size).toBe(3);
+
+    // Tick budget sanity — if this ever takes more than ~300 ticks something
+    // is wrong (walk distance is ~2 grid units at 0.040/tick = 50 ticks).
+    expect(ticksUsed).toBeLessThan(300);
+  });
+});
