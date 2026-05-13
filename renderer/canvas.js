@@ -710,11 +710,18 @@ export function renderFrame(ctx, renderState, ts) {
 
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery", seatPositions });
 
-  // Loan officer — drawn behind the desk (gy=1.75) regardless of where the
+  // Loan officer — drawn behind the desk (gy=1.45) regardless of where the
   // customer routes (loanDeskPos at gy=2.4 is the customer's stop position).
   // Ghost when unhired; live named chibi when staff.loanOfficers > 0.
+  //
+  // The 0.55-tile setback from the desk visual at gy=2.0 mirrors the teller
+  // geometry (teller at gy=2.45, customer at gy=3.10 — also a 0.55+ gap). An
+  // earlier value of gy=1.75 was only 0.25 tiles back; the chibi's legs and
+  // shadow overlapped the desk top, and because the chibi is drawn after the
+  // desk in renderFrame, the legs rendered on top — making the officer look
+  // like she was standing in front of her own desk.
   {
-    const p = toIso(2.2, 1.75);
+    const p = toIso(2.2, 1.45);
     if (staff.loanOfficers === 0) {
       drawChibi(ctx, p.x, p.y-8, {id:900, role:"teller", skinTone:"#c47840", hairColor:"#2c1810", outfitColor:"#3a6a4a", isMoving:false, emotion:"neutral"}, ts, {ghost:true, scale:0.85});
     } else if (loanOfficerRoster && loanOfficerRoster.length > 0) {
