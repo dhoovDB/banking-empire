@@ -61,10 +61,11 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       counter (gy=2.7/2.85). Teller chibi draw offset adjusted to keep teller
       behind the counter back at gy≈2.45. The waypoint mechanism is the right
       tool for genuine obstacle avoidance later — not needed here. (2026-05-05)
-- [ ] **Narrower teller desk** — desk currently spans the full row width.
-      Reduce to roughly half a tile per teller window so the counter reads as
-      a service desk rather than a wall. (Slot gy already shifted forward as
-      part of the pathfinding fix above; only the counter width remains.)
+- [x] **Narrower teller desk** — per-window spacing reduced from 0.55 to
+      0.42 tiles in `drawTellerCounter`; counter reads as a service desk
+      instead of a wall. At 5+ tellers the engine-side TELLER_SLOTS (still
+      0.55 apart) sit past the new counter's right edge — captured as a
+      MEDIUM TERM follow-up. (2026-05-15)
 - [x] **Loan officer + customer share one desk** — fixed 2026-05-08. Same
       pattern as the teller fix: `LOAN_DESK_POS` shifted from gy=2.0 (where
       desk visual sits) to gy=2.4 (in front of desk). Live loan officer chibi
@@ -72,20 +73,23 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       stays in the same back-of-desk position when unhired. Hired officer is
       a real opaque named chibi from the new `loanOfficerRoster`, not a
       translucent placeholder.
-- [ ] **Vault dimensionality** — the vault still breaks the iso projection
-      (depth not consistent with the rest of the room). The new gx=5.0, gy=1.5
-      position made it more visible but didn't fix the underlying math. Redraw
-      with consistent iso depth (top face, front face, side faces all using
-      the same per-pixel-per-grid-unit ratio).
-- [ ] **Rearrange visuals — waiting seats, teller desk, and loan officer
-      desk are crowded in the middle** — all three serving zones cluster in
-      the gx 1.5–5 strip with chairs, queue lanes, and counters layered on
-      top of each other. The eye should read three distinct service areas.
-      Options: push the loan desk further left (or to the back wall),
-      relocate waiting seats to one side instead of dead-center, or widen
-      the teller counter span so the rest can breathe. Decide a layout
-      pass before adding more chairs (era 2 seat purchases) or a second
-      loan officer.
+- [x] **Vault dimensionality** — `drawVault` redrawn as a proper iso
+      prism. Footprint is the 1×1 tile from `toIso(5.0, 1.0)` to
+      `toIso(6.0, 2.0)`; top diamond is the floor diamond raised by
+      `H = ISO_TH * 0.85`; right and front faces are parallelograms between
+      top and floor corners. Door radius and every fitting (rivets, wheel,
+      hinges, handle) are sized as fractions of `H` — no raw pixel anchors
+      survive. (2026-05-15)
+- [x] **Rearrange visuals — three distinct service zones** — all three
+      levers from the original entry now pulled: chairs already moved
+      bottom-left (2026-05-11); loan desk pushed back from `toIso(2.2, 2.0)`
+      to `toIso(2.0, 1.5)` so it sits in the gy=1 zone instead of crowding
+      the manager desk; teller counter tightened via the 0.42 spacing above.
+      Loan officer chibi updated to `toIso(2.0, 0.95)` to preserve the
+      0.55-tile setback behind the new desk position. Side-effect: the new
+      loan desk's right edge overlaps the security desk's left edge at
+      `toIso(2.5, 1.0)` — fix is to move the security desk or pull the loan
+      desk further left; captured below. (2026-05-15)
 
 ### 1d. Latent bug found during plan exploration
 
@@ -95,6 +99,21 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       walk to the vault. Robberies are era 2+ only, so this hasn't been
       triggered in playtest. One-line fix; bundle with the next robbery-related
       task.
+
+### 1e. Follow-ups from the 2026-05-15 canvas pass
+*Known issues introduced by the 2026-05-15 commit. Deferred deliberately so*
+*the three §1c fixes ship as one coherent canvas pass — these are next-up,*
+*not blockers on that commit.*
+
+- [ ] **Loan desk and security desk visually overlap** — moving the loan
+      desk from `toIso(2.2, 2.0)` to `toIso(2.0, 1.5)` put it in the same
+      back-row zone as the security desk at `toIso(2.5, 1.0)`. Their bodies
+      overlap at screen x≈560–574; the security desk's first CCTV monitor
+      clips the loan desk's top-right corner. Fix is either to slide the
+      security desk further right (e.g. `toIso(3.0, 1.0)`) or pull the loan
+      desk further left (e.g. `toIso(1.6, 1.5)`). Both also require the
+      live-chibi position above to shift to match. Pick this up before the
+      next playtest so the overlap doesn't surface as a "bug" in feedback.
 
 ### 1b. Queue behaviour (completed this session)
 
@@ -161,6 +180,16 @@ and doesn't enforce consequences for bad decisions.*
       manual script is fine and avoids CI debugging on small changes.
 
 ### Gameplay loop improvements
+
+- [ ] **TELLER_SLOTS spacing aligned to the narrower counter** — the
+      counter now uses 0.42-tile spacing (`drawTellerCounter`, 2026-05-15)
+      while `TELLER_SLOTS` in `BankingEmpire.jsx` is still 0.55-tile spacing.
+      At 2–4 tellers the rightmost customer sits inside the counter; at 5
+      tellers it drifts 0.02 tiles past the right edge; at 6 tellers, 0.15
+      tiles past. Era 1 ships 2 tellers so this is latent until era 2+
+      hiring. Fix is to re-derive `TELLER_SLOTS` from the same constants
+      `drawTellerCounter` uses — ideally lift those constants into a shared
+      module so the renderer and engine can't drift again.
 
 - [ ] **Per-tick personal-space rule (collision avoidance)** — the lobby
       allocator (shipped 2026-05-11) prevents stacking *within waiting state*
@@ -346,6 +375,26 @@ Scales with the bank as it grows. Teaches reserve requirement proportionality.
 Levels 2 and 3 serve no purpose in era 1 since robberies don't fire.
 They display as locked teasers, not active options.
 
+### Vault is an iso prism, not a screen-pixel sprite
+`drawVault` anchors the vault to a 1×1 tile footprint between
+`toIso(5.0, 1.0)` and `toIso(6.0, 2.0)`. The top diamond, right face, and
+front face all derive from those iso corners and `H = ISO_TH * 0.85`. The
+door radius (`H * 0.38`) and every fitting (rivets, wheel, hinges, handle,
+glow halo) is sized as a fraction of `H` — never as raw screen pixels. Do
+not re-introduce `vd.x ± 44`, `vd.y ± 80`-style offsets; the prior version
+floated on a different floor than the room because the alcove and frame
+were anchored in screen pixels independent of the iso transform. The same
+rule applies to any future furniture: tile-fractions and iso corners only.
+
+### Loan desk lives in the back-left, not next to the manager desk
+The loan officer desk is at `toIso(2.0, 1.5)` and the loan officer chibi
+at `toIso(2.0, 0.95)` (0.55-tile setback so legs clear the desk top). The
+earlier `toIso(2.2, 2.0)` position crowded the manager desk one tile in
+front of it; "manager and loan desk read as one merged blob" was a
+playthrough complaint. The customer's loan-desk stop position
+(`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
+gap is the price of giving the manager desk room to breathe.
+
 ---
 
 ## Completed
@@ -386,6 +435,9 @@ They display as locked teasers, not active options.
 - [x] Waiting chairs moved bottom-left — `SEAT_POSITIONS` shifted from gx 1.5–3.1, gy 3.50/3.85 to gx 0.9–2.5, gy 3.90/4.25. The old layout sat the chairs right up against the teller counter back, where seated chibis visually merged with the teller backstage. New layout keeps chairs clear of the teller approach zone (gx 2.4+), the queue triangle (gx 2.7–4.3), and the corner plant at (0.7, 4.5). Side effect: shorter walk from queue to seat. Related observation about visible seat usage during a rush parked in §1e for next-session investigation. (2026-05-11)
 - [x] Loan officer scooted back behind her desk — chibi shifted from gy=1.75 to gy=1.45 in `renderer/canvas.js`. The old 0.25-tile setback left only ~12px of screen-y clearance between the chibi and the desk visual; the chibi's legs and shadow (~21px below anchor) overlapped the desk top, and because the chibi was drawn after the desk, the legs rendered on top — making the officer look like she was standing in front of her own desk. New 0.55-tile setback mirrors the teller geometry (gy=2.45 chibi vs gy=3.10 customer). Comment in canvas.js explains the geometry so a future renderer pass doesn't undo it. (2026-05-13)
 - [x] §1e seat-usage investigation — first multi-tick integration test in the suite, in `engine/simulation.test.js`. Spawns 3 customers at once into a state mirroring the era-1 layout (3 seats, 0 free tellers), runs the engine tick loop with the same per-character delta-application order as `BankingEmpire.jsx`, and asserts all three seats fill and all three customers reach `seatedAt=true` within a bounded tick budget. Test passes on first run. Conclusion: the engine's seat allocator works correctly under the conditions that produced the playtest observation. The "only 1 chair used at a time" report is therefore either (a) timing — only one chibi is visibly *sitting* at a given moment because others are still walking, or (b) a renderer-side issue that doesn't show up in engine state. Test stays in the suite as a regression canary; if the visual report recurs after replay, the next session investigates downstream of the engine. 88 tests passing. (2026-05-13)
+- [x] Vault redrawn as a proper iso prism — `drawVault` no longer anchors its alcove and door frame in raw screen pixels. Footprint is the 1×1 tile from `toIso(5.0, 1.0)` to `toIso(6.0, 2.0)`; top diamond is the floor diamond raised by `H = ISO_TH * 0.85`; right and front faces are parallelograms between top and floor corners. Door radius (`H * 0.38`) and every fitting (rivet positions and sizes, inner ring, wheel spokes, hub, hinges, handle, glow halo) is a fraction of `H`. The vault now sits flush with the vault/vaultAlt tiles it occupies in TILE_MAP instead of floating on a different floor. (2026-05-15)
+- [x] Loan officer desk pushed back into the gy=1 zone — `drawDesks` loan desk moved from `toIso(2.2, 2.0)` to `toIso(2.0, 1.5)` so it stops crowding the manager desk one tile in front of it. Loan officer chibi in `renderFrame` shifted from `toIso(2.2, 1.45)` to `toIso(2.0, 0.95)` to preserve the 0.55-tile setback behind the new desk position (same setback that fixed leg-overlap on 2026-05-13). The customer's loan-desk stop position (engine-side, `LOAN_DESK_POS` at gy=2.4) is unchanged, so the visual gap between desk and customer widens — accepted trade for the manager-desk breathing room. Side-effect captured as §1e follow-up: the new desk's right edge now overlaps the security desk's left edge. (2026-05-15)
+- [x] Teller counter narrower — `drawTellerCounter` per-window spacing reduced from 0.55 to 0.42 in both `endGx` and the per-teller plaque loop. The counter reads as a service desk instead of a wall across the back. The engine-side `TELLER_SLOTS` in `BankingEmpire.jsx` is still 0.55-spaced, so at 5+ tellers the rightmost customer drifts past the counter's right edge (0.02 tiles at 5, 0.15 at 6). Era 1 ships 2 tellers so this is latent. Aligning TELLER_SLOTS to the new counter spacing is captured as a MEDIUM TERM follow-up. (2026-05-15)
 
 ---
 

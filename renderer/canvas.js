@@ -173,7 +173,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   if (numTellers <= 0) return;
 
   const startGx = 2.4;
-  const endGx   = startGx + (numTellers - 1) * 0.55 + 0.5;
+  const endGx   = startGx + (numTellers - 1) * 0.42 + 0.5;
   const gyFront = 3.05; // front edge (customer-facing)
   const gyBack  = 2.55; // back edge (teller-side)
   const faceH   = 32;   // pixel height of the counter face
@@ -236,7 +236,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
 
   // Per-teller window plaque on the front face
   for (let i = 0; i < numTellers; i++) {
-    const px = toIso(startGx + 0.25 + i * 0.55, gyFront);
+    const px = toIso(startGx + 0.25 + i * 0.42, gyFront);
     const active = activeTellers.has(i);
     if (active) {
       ctx.fillStyle = "rgba(245,200,120,0.22)";
@@ -253,106 +253,144 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   }
 }
 
-// ─── VAULT — polished steel, subtle, no cartoon red ─────────────────────────
+// ─── VAULT — polished steel prism on the iso grid ───────────────────────────
+// Footprint: 1×1 tile, back-left at toIso(5.0, 1.0), front-right at toIso(6.0, 2.0).
+// All geometry derives from those two iso corners and the box height H; door
+// fittings are sized as fractions of H. No raw screen-pixel anchors.
 function drawVault(ctx, { vaultOpen, robberyActive }) {
-  const vd = toIso(5.0, 1.5);
+  const tlF = toIso(5.0, 1.0); // floor back-left
+  const trF = toIso(6.0, 1.0); // floor back-right
+  const brF = toIso(6.0, 2.0); // floor front-right
+  const blF = toIso(5.0, 2.0); // floor front-left
 
-  // Alcove — recessed dark slate
-  ctx.fillStyle = "#15181b";
+  const H = ISO_TH * 0.85; // vault height in screen pixels
+
+  // Top diamond — floor corners raised by H
+  const tlT = { x: tlF.x, y: tlF.y - H };
+  const trT = { x: trF.x, y: trF.y - H };
+  const brT = { x: brF.x, y: brF.y - H };
+  const blT = { x: blF.x, y: blF.y - H };
+
+  // Drop shadow on the floor at the front of the vault
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
   ctx.beginPath();
-  ctx.roundRect(vd.x - 44, vd.y - 80, 88, 88, 5);
+  ctx.ellipse((blF.x + brF.x) / 2, brF.y + ISO_TH * 0.05,
+              ISO_TW * 0.40, ISO_TH * 0.05, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // Door frame — steel
-  const fg = ctx.createLinearGradient(vd.x-40, vd.y-76, vd.x+40, vd.y);
-  fg.addColorStop(0, PAL.steelDk);
-  fg.addColorStop(0.5, PAL.steel);
-  fg.addColorStop(1, PAL.steelDk);
-  ctx.fillStyle = fg;
+  // Right face (+gx)
+  const rightGrad = ctx.createLinearGradient(trT.x, trT.y, brF.x, brF.y);
+  rightGrad.addColorStop(0, PAL.steelDk);
+  rightGrad.addColorStop(1, "#171a1e");
+  ctx.fillStyle = rightGrad;
   ctx.beginPath();
-  ctx.roundRect(vd.x - 38, vd.y - 74, 76, 78, 4);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1.2;
+  ctx.moveTo(trT.x, trT.y); ctx.lineTo(brT.x, brT.y);
+  ctx.lineTo(brF.x, brF.y); ctx.lineTo(trF.x, trF.y);
+  ctx.closePath(); ctx.fill();
+
+  // Front face (+gy) — door is mounted here
+  const frontGrad = ctx.createLinearGradient(blT.x, blT.y, blF.x, blF.y);
+  frontGrad.addColorStop(0, PAL.steel);
+  frontGrad.addColorStop(0.6, PAL.steelDk);
+  frontGrad.addColorStop(1, "#1a1e22");
+  ctx.fillStyle = frontGrad;
   ctx.beginPath();
-  ctx.roundRect(vd.x - 38, vd.y - 74, 76, 78, 4);
+  ctx.moveTo(blT.x, blT.y); ctx.lineTo(brT.x, brT.y);
+  ctx.lineTo(brF.x, brF.y); ctx.lineTo(blF.x, blF.y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Round door
-  const cy = vd.y - 36;
-  const r  = 30;
-  const dg = ctx.createRadialGradient(vd.x-8, cy-8, 4, vd.x, cy, r);
+  // Top diamond — polished steel slate
+  const topGrad = ctx.createLinearGradient(tlT.x, tlT.y, brT.x, brT.y);
+  topGrad.addColorStop(0, PAL.steelHi);
+  topGrad.addColorStop(1, PAL.steel);
+  ctx.fillStyle = topGrad;
+  ctx.beginPath();
+  ctx.moveTo(tlT.x, tlT.y); ctx.lineTo(trT.x, trT.y);
+  ctx.lineTo(brT.x, brT.y); ctx.lineTo(blT.x, blT.y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // ── DOOR — centered on front face, all fittings derived from H ──
+  const fx = (blT.x + brT.x + blF.x + brF.x) / 4;
+  const fy = (blT.y + brT.y + blF.y + brF.y) / 4;
+  const r  = H * 0.38;
+
+  // Round door body
+  const dg = ctx.createRadialGradient(fx - r * 0.26, fy - r * 0.26, r * 0.13, fx, fy, r);
   dg.addColorStop(0, robberyActive ? "#5a2222" : "#4d535a");
   dg.addColorStop(1, robberyActive ? "#2a0808" : "#262a30");
   ctx.fillStyle = dg;
-  ctx.beginPath(); ctx.arc(vd.x, cy, r, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI*2); ctx.fill();
 
   // Outer ring
   ctx.strokeStyle = robberyActive ? "#a04040" : vaultOpen ? PAL.brass : PAL.steel;
   ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(vd.x, cy, r, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI*2); ctx.stroke();
 
-  // Rivets
+  // Rivets — 12 around the door, just inside the outer ring
   for (let i = 0; i < 12; i++) {
-    const a = (i/12) * Math.PI*2;
-    const bx = vd.x + Math.cos(a)*(r-4);
-    const by = cy   + Math.sin(a)*(r-4);
+    const a = (i / 12) * Math.PI*2;
+    const bx = fx + Math.cos(a) * (r * 0.87);
+    const by = fy + Math.sin(a) * (r * 0.87);
     ctx.fillStyle = PAL.steelDk;
-    ctx.beginPath(); ctx.arc(bx, by, 1.8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, by, r * 0.06, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = PAL.steelHi;
-    ctx.beginPath(); ctx.arc(bx-0.5, by-0.5, 0.8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx - r * 0.016, by - r * 0.016, r * 0.026, 0, Math.PI*2); ctx.fill();
   }
 
   // Inner ring
   ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(vd.x, cy, r-9, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(fx, fy, r * 0.71, 0, Math.PI*2); ctx.stroke();
 
-  // Combination wheel — 4 spokes
+  // Combination wheel — 4 spokes from hub to inner ring
   const rot = vaultOpen ? Math.PI/4 : 0;
   ctx.lineCap = "round";
   for (let i = 0; i < 4; i++) {
-    const a = (i/4) * Math.PI*2 + rot;
+    const a = (i / 4) * Math.PI*2 + rot;
     ctx.strokeStyle = robberyActive ? "#c08040" : PAL.steelHi;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.moveTo(vd.x + Math.cos(a)*3,    cy + Math.sin(a)*3);
-    ctx.lineTo(vd.x + Math.cos(a)*(r-13), cy + Math.sin(a)*(r-13));
+    ctx.moveTo(fx + Math.cos(a) * (r * 0.10), fy + Math.sin(a) * (r * 0.10));
+    ctx.lineTo(fx + Math.cos(a) * (r * 0.57), fy + Math.sin(a) * (r * 0.57));
     ctx.stroke();
   }
   ctx.lineCap = "butt";
+
   // Hub
   ctx.fillStyle = PAL.steel;
-  ctx.beginPath(); ctx.arc(vd.x, cy, 3.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(fx, fy, r * 0.115, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = "#1a1f25";
-  ctx.beginPath(); ctx.arc(vd.x, cy, 1.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(fx, fy, r * 0.06, 0, Math.PI*2); ctx.fill();
 
-  // Hinges
+  // Hinges — on the LEFT side of the door, just outside the outer ring
   [-0.55, 0.55].forEach(f => {
-    const hy = cy + f*r;
+    const hy = fy + f * r;
+    const hx = fx - r - r * 0.20;
+    const hw = r * 0.23;
+    const hh = r * 0.26;
     ctx.fillStyle = PAL.steelDk;
-    ctx.beginPath(); ctx.roundRect(vd.x - 36, hy - 4, 7, 8, 1.5); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(hx, hy - hh / 2, hw, hh, 1.5); ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 0.6;
-    ctx.beginPath(); ctx.roundRect(vd.x - 36, hy - 4, 7, 8, 1.5); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(hx, hy - hh / 2, hw, hh, 1.5); ctx.stroke();
   });
 
-  // Handle bar
+  // Handle — on the RIGHT side of the door
+  const handleX = fx + r * 0.40;
+  const handleW = r * 0.45;
+  const handleH = r * 0.19;
   ctx.fillStyle = PAL.steelDk;
-  ctx.beginPath(); ctx.roundRect(vd.x + 12, cy - 4, 14, 6, 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(handleX, fy - handleH / 2, handleW, handleH, 2); ctx.fill();
   ctx.fillStyle = PAL.steelHi;
-  ctx.fillRect(vd.x + 13, cy - 3.2, 12, 1.2);
+  ctx.fillRect(handleX + 1, fy - handleH / 2 + 0.5, handleW - 2, handleH * 0.25);
 
-  // Open / robbery glow
+  // Open / robbery glow halo
   if (vaultOpen || robberyActive) {
     ctx.fillStyle = robberyActive ? "rgba(220,80,60,0.10)" : "rgba(220,170,90,0.10)";
-    ctx.beginPath(); ctx.arc(vd.x, cy, r+18, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(fx, fy, r * 1.58, 0, Math.PI*2); ctx.fill();
   }
-
-  // Plaque under vault
-  ctx.fillStyle = "#0e1114";
-  ctx.fillRect(vd.x - 22, vd.y + 2, 44, 6);
-  ctx.fillStyle = PAL.brass;
-  ctx.font = "bold 5px 'Nunito',sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("VAULT", vd.x, vd.y + 6.5);
 }
 
 // ─── MANAGER & SECURITY DESKS — sober walnut with monitor ───────────────────
@@ -386,8 +424,9 @@ function drawDesks(ctx) {
   ctx.fillStyle = "rgba(255,220,150,0.35)";
   ctx.beginPath(); ctx.ellipse(md.x + 24, md.y - 12, 9, 4, 0, 0, Math.PI*2); ctx.fill();
 
-  // Loan officer desk — smaller, beside manager, green baize top
-  const ld = toIso(2.2, 2.0);
+  // Loan officer desk — pushed back into the gy=1 zone so it stops
+  // visually crowding the manager desk one tile in front of it
+  const ld = toIso(2.0, 1.5);
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.beginPath(); ctx.ellipse(ld.x, ld.y + 12, 30, 4, 0, 0, Math.PI*2); ctx.fill();
   const lg = ctx.createLinearGradient(0, ld.y-10, 0, ld.y+10);
@@ -710,18 +749,18 @@ export function renderFrame(ctx, renderState, ts) {
 
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery", seatPositions });
 
-  // Loan officer — drawn behind the desk (gy=1.45) regardless of where the
+  // Loan officer — drawn behind the desk (gy=0.95) regardless of where the
   // customer routes (loanDeskPos at gy=2.4 is the customer's stop position).
   // Ghost when unhired; live named chibi when staff.loanOfficers > 0.
   //
-  // The 0.55-tile setback from the desk visual at gy=2.0 mirrors the teller
-  // geometry (teller at gy=2.45, customer at gy=3.10 — also a 0.55+ gap). An
-  // earlier value of gy=1.75 was only 0.25 tiles back; the chibi's legs and
-  // shadow overlapped the desk top, and because the chibi is drawn after the
-  // desk in renderFrame, the legs rendered on top — making the officer look
-  // like she was standing in front of her own desk.
+  // The 0.55-tile setback from the desk visual at gy=1.5 mirrors the teller
+  // geometry (teller at gy=2.45, customer at gy=3.10 — also a 0.55+ gap).
+  // The desk used to sit at gy=2.0 next to the manager desk, but the two
+  // were one tile apart and visually merged; pushing it back to gy=1.5
+  // gives the manager desk room to breathe. Setback preserved so the
+  // chibi's legs still clear the desk top.
   {
-    const p = toIso(2.2, 1.45);
+    const p = toIso(2.0, 0.95);
     if (staff.loanOfficers === 0) {
       drawChibi(ctx, p.x, p.y-8, {id:900, role:"teller", skinTone:"#c47840", hairColor:"#2c1810", outfitColor:"#3a6a4a", isMoving:false, emotion:"neutral"}, ts, {ghost:true, scale:0.85});
     } else if (loanOfficerRoster && loanOfficerRoster.length > 0) {
