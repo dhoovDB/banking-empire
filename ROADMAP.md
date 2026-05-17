@@ -136,7 +136,31 @@ and doesn't enforce consequences for bad decisions.*
 - [x] Replace `[Live demo link]` placeholder in README.md with https://dhoovdb.github.io/banking-empire/ (2026-05-08)
 - [x] Verify it loads on desktop — confirmed 200 OK on index.html and assets (2026-05-08)
 
-### 5. README demo video
+### 5. Consistency audit across the codebase
+*Problem: despite the four-layer architecture, ad-hoc per-element code keeps*
+*piling up — three different desk nameplate styles, shadow ellipses copy-pasted*
+*into six functions, tile colors competing instead of collaborating. The*
+*2026-05-16 "Default to consistency" principle in CLAUDE.md is the rule;*
+*this audit is the cleanup of what already drifted before the rule landed.*
+
+- [ ] **Sweep for duplicated visual primitives.** Targets: any place we draw
+      the "same thing in two places" (plates, badges, headers, banners,
+      status pills). Each duplicate either becomes one shared helper or
+      earns a `// reason:` comment explaining why it diverges. Start in
+      `renderer/canvas.js`, then `ui/`. Reference the 2026-05-16 desk
+      nameplate helper as the pattern.
+
+- [ ] **Sweep for parallel branches in engine handlers.** `evaluateCharacter`,
+      `applyCommand`, and `resolveEvent` each have role-based switches that
+      have grown wider one role at a time. Look for branches that differ
+      only in a single constant or a single output field — those collapse
+      to one branch with a per-role table.
+
+- [ ] **Sweep config for arrow-function values.** CLAUDE.md says config is
+      data only. Verify nothing has crept in. Quick grep for `=>` under
+      `config/`.
+
+### 6. README demo video
 *Problem: a hiring manager won't clone a repo to evaluate a portfolio piece.*
 
 - [ ] Record 60–90 second screen capture: setup → quarter 1 event → report screen

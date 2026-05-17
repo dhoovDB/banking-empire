@@ -61,6 +61,13 @@ Specific things to watch for:
 - Engine functions that call `setState` or read React refs → remove the 
   React dependency
 
+**Default to consistency across similar elements.** When two visual or logical elements play the
+same role (desk nameplates, character labels, KPI rows, status banners, event handlers of the
+same shape), they share one rendering path with one set of defaults. Diverge only with a
+`// reason:` comment at the call site explaining why this case is special. Two ad-hoc copies
+become three; three become the spaghetti you have to refactor under deadline. The cost of one
+unjustified copy is the cost of every future copy.
+
 ### `config/` — Game rules as data
 
 Nothing in `config/` imports from anywhere else in the project.
