@@ -581,9 +581,10 @@ describe("multi-tick rush — all 3 default seats fill correctly", () => {
     {gx:2.4,gy:3.10}, {gx:2.95,gy:3.10}, {gx:3.5,gy:3.10},
     {gx:4.05,gy:3.10}, {gx:4.6,gy:3.10}, {gx:5.15,gy:3.10},
   ];
-  // The era-1 default — 3 seats, in their post-2026-05-11 bottom-left positions
+  // The era-1 default — 3 seats, mirrors BankingEmpire.jsx SEAT_POSITIONS
+  // (shifted +0.1 gx on 2026-05-16 so the leftmost seat sits on the floor)
   const SEAT_POSITIONS = [
-    {gx:0.9, gy:3.90}, {gx:1.3, gy:3.90}, {gx:1.7, gy:3.90},
+    {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
   ];
   const EXIT_POS             = {gx:3.5, gy:5.8};
   const LOAN_DESK_POS        = {gx:2.2, gy:2.4};

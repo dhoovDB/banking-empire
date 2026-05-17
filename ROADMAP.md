@@ -100,21 +100,6 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       triggered in playtest. One-line fix; bundle with the next robbery-related
       task.
 
-### 1e. Follow-ups from the 2026-05-15 canvas pass
-*Known issues introduced by the 2026-05-15 commit. Deferred deliberately so*
-*the three §1c fixes ship as one coherent canvas pass — these are next-up,*
-*not blockers on that commit.*
-
-- [ ] **Loan desk and security desk visually overlap** — moving the loan
-      desk from `toIso(2.2, 2.0)` to `toIso(2.0, 1.5)` put it in the same
-      back-row zone as the security desk at `toIso(2.5, 1.0)`. Their bodies
-      overlap at screen x≈560–574; the security desk's first CCTV monitor
-      clips the loan desk's top-right corner. Fix is either to slide the
-      security desk further right (e.g. `toIso(3.0, 1.0)`) or pull the loan
-      desk further left (e.g. `toIso(1.6, 1.5)`). Both also require the
-      live-chibi position above to shift to match. Pick this up before the
-      next playtest so the overlap doesn't surface as a "bug" in feedback.
-
 ### 1b. Queue behaviour (completed this session)
 
 - [x] **Waiting state** — customers hold at queue slot until a teller or loan desk slot is free. Direct-to-desk if slot open on entry. Removes the old progress-timer advance trigger. (2026-05-02)
@@ -164,11 +149,44 @@ and doesn't enforce consequences for bad decisions.*
 
 ### UI polish
 
+- [ ] **Role clarity for chibis — legend panel in HUD (working direction)** —
+      desks have nameplates ("LOANS") but the chibis themselves don't read
+      as a specific role. The 2026-05-16 playtest produced "I see 2 people
+      and one is transparent — is that the security placeholder?" The
+      transparent figure WAS the security ghost; the player couldn't tell
+      from the canvas alone. As staffing grows (era 2+ adds more roles,
+      era 3-4 adds tiered units) this gets worse, not better. **Working
+      direction:** a legend panel in the React HUD that maps outfit colour
+      / silhouette to role, sitting alongside the KPI panel. Needs a design
+      session to finalise before building — alternatives still on the table
+      are floating role labels above each named chibi, hover tooltips, or
+      distinct visual icons per role. Decide the approach, then build.
+
 - [ ] **Framer Motion on the React shell** — animate phase transitions
       (setup → simulating → report), KPI counter tweens, event-banner
       enter/exit, and modal-style screens. Cannot animate inside the
       `<canvas>` element — this is for the React UI surrounding it.
       Item #6 in the 2026-05-03 playthrough sequence.
+
+### Developer tooling
+*These changes happen in the claude-skills repo, not here. This entry is a*
+*reminder only — Banking Empire benefits from them but doesn't host them.*
+
+- [ ] **SKILL.md: html5-canvas** — iso coordinate system, tile-fraction
+      sizing rules, `drawVault` geometry pattern, no raw pixel anchors.
+      Trigger: any task touching `renderer/canvas.js` or `renderer/particles.js`.
+      Lives in github.com/dhoovDB/claude-skills.
+
+- [ ] **SKILL.md: react-game-loop** — `setInterval` simulation loop plus
+      `requestAnimationFrame` render loop pattern, why `simState` is a ref
+      not React state, how to add new loops without breaking the existing
+      architecture. Trigger: any task touching `BankingEmpire.jsx`
+      simulation or render logic. Lives in github.com/dhoovDB/claude-skills.
+
+- [ ] **SKILL.md: vitest** — testing conventions for pure engine functions,
+      how to write integration tests for multi-tick simulation sequences.
+      Trigger: any unit test task in this repo. Lives in
+      github.com/dhoovDB/claude-skills.
 
 ### Deploy automation
 
@@ -438,6 +456,14 @@ gap is the price of giving the manager desk room to breathe.
 - [x] Vault redrawn as a proper iso prism — `drawVault` no longer anchors its alcove and door frame in raw screen pixels. Footprint is the 1×1 tile from `toIso(5.0, 1.0)` to `toIso(6.0, 2.0)`; top diamond is the floor diamond raised by `H = ISO_TH * 0.85`; right and front faces are parallelograms between top and floor corners. Door radius (`H * 0.38`) and every fitting (rivet positions and sizes, inner ring, wheel spokes, hub, hinges, handle, glow halo) is a fraction of `H`. The vault now sits flush with the vault/vaultAlt tiles it occupies in TILE_MAP instead of floating on a different floor. (2026-05-15)
 - [x] Loan officer desk pushed back into the gy=1 zone — `drawDesks` loan desk moved from `toIso(2.2, 2.0)` to `toIso(2.0, 1.5)` so it stops crowding the manager desk one tile in front of it. Loan officer chibi in `renderFrame` shifted from `toIso(2.2, 1.45)` to `toIso(2.0, 0.95)` to preserve the 0.55-tile setback behind the new desk position (same setback that fixed leg-overlap on 2026-05-13). The customer's loan-desk stop position (engine-side, `LOAN_DESK_POS` at gy=2.4) is unchanged, so the visual gap between desk and customer widens — accepted trade for the manager-desk breathing room. Side-effect captured as §1e follow-up: the new desk's right edge now overlaps the security desk's left edge. (2026-05-15)
 - [x] Teller counter narrower — `drawTellerCounter` per-window spacing reduced from 0.55 to 0.42 in both `endGx` and the per-teller plaque loop. The counter reads as a service desk instead of a wall across the back. The engine-side `TELLER_SLOTS` in `BankingEmpire.jsx` is still 0.55-spaced, so at 5+ tellers the rightmost customer drifts past the counter's right edge (0.02 tiles at 5, 0.15 at 6). Era 1 ships 2 tellers so this is latent. Aligning TELLER_SLOTS to the new counter spacing is captured as a MEDIUM TERM follow-up. (2026-05-15)
+- [x] Security desk no longer overlaps loan desk — `drawDesks` security desk shifted from `toIso(2.5, 1.0)` to `toIso(3.0, 1.0)`, and the security ghost (era 1, security=0) in `renderFrame` moved from `toIso(2.5, 1.05)` to `toIso(3.0, 1.05)` to match. The security desk is 72px wide vs the loan desk's 52px, so moving it was the cheaper trade than pulling the loan desk further left out of the back-left zone. The gx=3 tile is already a security strip in TILE_MAP, and the vault footprint starting at gx=5 leaves clear room. Side-effect from the 2026-05-15 loan-desk relocation, closed before next playtest. (2026-05-16)
+- [x] Loan officer tightened in behind the desk — chibi setback reduced from 0.55 to 0.35 tiles (`renderFrame` loan-officer block, gy=0.95 → gy=1.15). Playtest read after the security-desk move was "officer is very far from his desk." The 0.55 setback was set on 2026-05-13 against the older, taller desk drawing; the slimmer back-row desk tolerates a tighter setback. Comment in canvas.js notes that legs were the historical reason and points to raising back toward 0.55 if leg-overlap returns. (2026-05-16)
+- [x] Floor decluttered — every furniture drop shadow removed (teller counter, vault, manager / loan / security desks, waiting chairs). Chibi shadows kept since they ground each moving character; the others were copy-pasted ellipses adding visual noise to a stationary scene. (2026-05-16)
+- [x] Tile colors unified to alternating marble — `TILE_MAP` rebuilt as a single loop emitting `floorA`/`floorB` checkerboard across the whole floor. The earlier mix of security graphite + manager teal + vault slate competed with each other and with the furniture; now the vault prism, desks, counter, and chairs do all the zone signaling. Tile colors stop carrying meaning they couldn't pay off. (2026-05-16)
+- [x] Desk nameplates unified — `drawDeskNameplate(ctx, anchor, label, opts)` helper added (auto-sizes plate to label, 7px bold Nunito brass on dark, single source of truth for plate geometry and font). Manager and Security desks gained nameplates ("MANAGER", "SECURITY"); loan desk's 4px "LOANS" plate now goes through the helper; per-teller window numbers also routed through the helper. Three ad-hoc conventions collapsed to one. (2026-05-16)
+- [x] Floor objects snapped onto the grid — left plants `gx 0.7 → 1.0`, right plants `gx 6.3 → 6.0`, all SEAT_POSITIONS shifted +0.1 gx (0.9→1.0, 1.3→1.4, etc.). The previous half-tile offsets put the leftmost chair and both side plants on bare canvas outside the painted floor. Local SEAT_POSITIONS in `engine/simulation.test.js` updated in lockstep. (2026-05-16)
+- [x] CLAUDE.md gained a "Default to consistency across similar elements" architecture principle, plus a new SHORT TERM consistency audit item — the rule is recorded going forward, and the audit captures the cleanup of what drifted before the rule landed. (2026-05-16)
+- [x] Vault door redrawn on the iso face plane — `drawVault` door body, outer ring, inner ring, spokes, hinges, and handle were all `ctx.arc` / axis-aligned rects in screen space, pasted onto a 2D-projected parallelogram. Playtest read was "the door is not in the same dimension/angle as the rest of the vault." Rebuilt with a `facePoint(u, v)` helper that maps face-local fractions onto the front-face plane (U = brT - blT, V = (0, H)). The door body and rings are now parametric 48-segment polygons; spokes use facePoint for both endpoints; hinges and the handle are parallelograms with all four corners projected through facePoint. Rivets, hub, and inner hub stay as screen-space circles — small enough that the projection delta would only read as noise. Door radius restated as a face-fraction (R = 0.38 of one tile) so width and height scale together with the face. 88/88 tests still passing. (2026-05-16)
 
 ---
 

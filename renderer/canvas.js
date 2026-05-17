@@ -54,23 +54,16 @@ export function toIso(gx, gy) {
   };
 }
 
-// gy=1 vault row · gy=2 manager+loan officer backstage · gy=3 teller counter · gy=4 queue/waiting · gy=5 entrance
-const TILE_MAP = [
-  // gy=1 — back row, vault alcove
-  { gx:1,gy:1,c:PAL.security    }, { gx:2,gy:1,c:PAL.securityAlt }, { gx:3,gy:1,c:PAL.security    },
-  { gx:4,gy:1,c:PAL.vaultAlt    }, { gx:5,gy:1,c:PAL.vault       }, { gx:6,gy:1,c:PAL.vaultAlt    },
-  // gy=2 — manager + loan officer backstage
-  { gx:1,gy:2,c:PAL.manager     }, { gx:2,gy:2,c:PAL.managerAlt  }, { gx:3,gy:2,c:PAL.carpetA     },
-  { gx:4,gy:2,c:PAL.carpetB     }, { gx:5,gy:2,c:PAL.vault       }, { gx:6,gy:2,c:PAL.vaultAlt    },
-  // gy=3 — teller counter
-  { gx:1,gy:3,c:PAL.floorA      }, { gx:2,gy:3,c:PAL.carpetA     }, { gx:3,gy:3,c:PAL.carpetB     },
-  { gx:4,gy:3,c:PAL.carpetA     }, { gx:5,gy:3,c:PAL.carpetB     }, { gx:6,gy:3,c:PAL.floorA      },
-  // gy=4 — queue / waiting carpet
-  { gx:1,gy:4,c:PAL.floorB      }, { gx:2,gy:4,c:PAL.carpetA     }, { gx:3,gy:4,c:PAL.carpetB     },
-  { gx:4,gy:4,c:PAL.carpetA     }, { gx:5,gy:4,c:PAL.carpetB     }, { gx:6,gy:4,c:PAL.floorB      },
-  // gy=5 — entrance row
-  ...[1,2,3,4,5,6].map(gx => ({ gx, gy:5, c: gx%2 ? PAL.floorA : PAL.floorB })),
-];
+// Whole floor is alternating marble. Furniture (vault prism, desks, counter,
+// chairs) does all the zone signaling — the earlier mix of security/manager/
+// vault dark tones competed with each other and with the furniture, so the
+// eye couldn't settle. One floor, one rhythm, one job for the tiles.
+const TILE_MAP = [];
+for (let gy = 1; gy <= 5; gy++) {
+  for (let gx = 1; gx <= 6; gx++) {
+    TILE_MAP.push({ gx, gy, c: (gx + gy) % 2 ? PAL.floorA : PAL.floorB });
+  }
+}
 
 const TILE_LABELS = {}; // tile labels removed — they fought the cleaner look
 
@@ -184,12 +177,6 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   const tr = toIso(endGx,   gyBack);  // back-right
   const tl = toIso(startGx, gyBack);  // back-left
 
-  // Drop shadow
-  ctx.fillStyle = "rgba(0,0,0,0.20)";
-  ctx.beginPath();
-  ctx.ellipse((bl.x+br.x)/2, br.y + faceH + 3, (br.x-bl.x)*0.48, 5, 0, 0, Math.PI*2);
-  ctx.fill();
-
   // Front face — walnut, slightly darker than top
   const frontGrad = ctx.createLinearGradient(0, bl.y, 0, bl.y + faceH);
   frontGrad.addColorStop(0, PAL.walnutLt);
@@ -244,12 +231,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
       ctx.ellipse(px.x, px.y + faceH * 0.55, 18, 5, 0, 0, Math.PI*2);
       ctx.fill();
     }
-    ctx.fillStyle = "#1a140e";
-    ctx.fillRect(px.x - 5, px.y + 7, 10, 5);
-    ctx.fillStyle = PAL.brass;
-    ctx.font = "bold 5px 'Nunito',sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(String(i + 1), px.x, px.y + 11);
+    drawDeskNameplate(ctx, { x: px.x, y: px.y + 9 }, String(i + 1));
   }
 }
 
@@ -270,13 +252,6 @@ function drawVault(ctx, { vaultOpen, robberyActive }) {
   const trT = { x: trF.x, y: trF.y - H };
   const brT = { x: brF.x, y: brF.y - H };
   const blT = { x: blF.x, y: blF.y - H };
-
-  // Drop shadow on the floor at the front of the vault
-  ctx.fillStyle = "rgba(0,0,0,0.30)";
-  ctx.beginPath();
-  ctx.ellipse((blF.x + brF.x) / 2, brF.y + ISO_TH * 0.05,
-              ISO_TW * 0.40, ISO_TH * 0.05, 0, 0, Math.PI*2);
-  ctx.fill();
 
   // Right face (+gx)
   const rightGrad = ctx.createLinearGradient(trT.x, trT.y, brF.x, brF.y);
@@ -313,92 +288,149 @@ function drawVault(ctx, { vaultOpen, robberyActive }) {
   ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 0.8;
   ctx.stroke();
 
-  // ── DOOR — centered on front face, all fittings derived from H ──
+  // ── DOOR — drawn ON the front-face plane, not pasted flat ──
+  //
+  // The front face is a parallelogram with corners blT, brT, brF, blF.
+  // Its "horizontal" axis in screen space is U = brT - blT (tilts down-right
+  // in iso); its "vertical" axis is V = blF - blT (straight down by H).
+  // A circle on this face becomes a screen-space ellipse with U and V as
+  // its (non-perpendicular) principal directions. We build every door
+  // primitive parametrically through facePoint(u, v) where u, v ∈ [-0.5, 0.5]
+  // span the full face. Door radius R is in face fractions: R = 0.38 means
+  // the door's face-radius is 38% of one tile in both face axes.
+  const ux = brT.x - blT.x;
+  const uy = brT.y - blT.y;
+  const vx = 0;
+  const vy = H;
   const fx = (blT.x + brT.x + blF.x + brF.x) / 4;
   const fy = (blT.y + brT.y + blF.y + brF.y) / 4;
-  const r  = H * 0.38;
+  const facePoint = (u, v) => ({ x: fx + u*ux + v*vx, y: fy + u*uy + v*vy });
+  const R = 0.38;
 
-  // Round door body
-  const dg = ctx.createRadialGradient(fx - r * 0.26, fy - r * 0.26, r * 0.13, fx, fy, r);
+  // Build the door-circle path once (48 segments — visually smooth)
+  const buildDoorRing = (radius) => {
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      const p = facePoint(Math.cos(a) * radius, Math.sin(a) * radius);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+  };
+
+  // Door body — radial gradient anchored on the face, highlight up-left
+  const hl = facePoint(-R * 0.26, -R * 0.26);
+  const dg = ctx.createRadialGradient(hl.x, hl.y, R * H * 0.13, fx, fy, R * H);
   dg.addColorStop(0, robberyActive ? "#5a2222" : "#4d535a");
   dg.addColorStop(1, robberyActive ? "#2a0808" : "#262a30");
   ctx.fillStyle = dg;
-  ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI*2); ctx.fill();
+  buildDoorRing(R); ctx.fill();
 
   // Outer ring
   ctx.strokeStyle = robberyActive ? "#a04040" : vaultOpen ? PAL.brass : PAL.steel;
   ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI*2); ctx.stroke();
+  buildDoorRing(R); ctx.stroke();
 
-  // Rivets — 12 around the door, just inside the outer ring
+  // Rivets — 12 around the door, just inside the outer ring. Rivets are
+  // small enough that we keep them as screen-space circles (the projection
+  // distortion at this scale would just blur into noise).
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI*2;
-    const bx = fx + Math.cos(a) * (r * 0.87);
-    const by = fy + Math.sin(a) * (r * 0.87);
+    const p = facePoint(Math.cos(a) * R * 0.87, Math.sin(a) * R * 0.87);
     ctx.fillStyle = PAL.steelDk;
-    ctx.beginPath(); ctx.arc(bx, by, r * 0.06, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, R * H * 0.06, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = PAL.steelHi;
-    ctx.beginPath(); ctx.arc(bx - r * 0.016, by - r * 0.016, r * 0.026, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x - R * H * 0.016, p.y - R * H * 0.016, R * H * 0.026, 0, Math.PI*2); ctx.fill();
   }
 
   // Inner ring
   ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(fx, fy, r * 0.71, 0, Math.PI*2); ctx.stroke();
+  buildDoorRing(R * 0.71); ctx.stroke();
 
-  // Combination wheel — 4 spokes from hub to inner ring
+  // Combination wheel — 4 spokes from hub to inner ring, drawn on the face
   const rot = vaultOpen ? Math.PI/4 : 0;
   ctx.lineCap = "round";
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI*2 + rot;
+    const p0 = facePoint(Math.cos(a) * R * 0.10, Math.sin(a) * R * 0.10);
+    const p1 = facePoint(Math.cos(a) * R * 0.57, Math.sin(a) * R * 0.57);
     ctx.strokeStyle = robberyActive ? "#c08040" : PAL.steelHi;
     ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(fx + Math.cos(a) * (r * 0.10), fy + Math.sin(a) * (r * 0.10));
-    ctx.lineTo(fx + Math.cos(a) * (r * 0.57), fy + Math.sin(a) * (r * 0.57));
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
   }
   ctx.lineCap = "butt";
 
-  // Hub
+  // Hub — small enough to stay as a screen-space circle
   ctx.fillStyle = PAL.steel;
-  ctx.beginPath(); ctx.arc(fx, fy, r * 0.115, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(fx, fy, R * H * 0.115, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = "#1a1f25";
-  ctx.beginPath(); ctx.arc(fx, fy, r * 0.06, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(fx, fy, R * H * 0.06, 0, Math.PI*2); ctx.fill();
 
-  // Hinges — on the LEFT side of the door, just outside the outer ring
+  // Hinges — LEFT side of the door, in face-space. Drawn as parallelograms
+  // whose corners are facePoint() projections, so they lie on the face plane.
+  const drawFaceRect = (uCenter, vCenter, uHalf, vHalf, fill, stroke) => {
+    const c0 = facePoint(uCenter - uHalf, vCenter - vHalf);
+    const c1 = facePoint(uCenter + uHalf, vCenter - vHalf);
+    const c2 = facePoint(uCenter + uHalf, vCenter + vHalf);
+    const c3 = facePoint(uCenter - uHalf, vCenter + vHalf);
+    ctx.beginPath();
+    ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y);
+    ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y);
+    ctx.closePath();
+    if (fill)   { ctx.fillStyle   = fill;   ctx.fill();   }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 0.6; ctx.stroke(); }
+  };
   [-0.55, 0.55].forEach(f => {
-    const hy = fy + f * r;
-    const hx = fx - r - r * 0.20;
-    const hw = r * 0.23;
-    const hh = r * 0.26;
-    ctx.fillStyle = PAL.steelDk;
-    ctx.beginPath(); ctx.roundRect(hx, hy - hh / 2, hw, hh, 1.5); ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 0.6;
-    ctx.beginPath(); ctx.roundRect(hx, hy - hh / 2, hw, hh, 1.5); ctx.stroke();
+    drawFaceRect(-R - R * 0.08, f * R, R * 0.115, R * 0.13, PAL.steelDk, "rgba(0,0,0,0.4)");
   });
 
-  // Handle — on the RIGHT side of the door
-  const handleX = fx + r * 0.40;
-  const handleW = r * 0.45;
-  const handleH = r * 0.19;
-  ctx.fillStyle = PAL.steelDk;
-  ctx.beginPath(); ctx.roundRect(handleX, fy - handleH / 2, handleW, handleH, 2); ctx.fill();
-  ctx.fillStyle = PAL.steelHi;
-  ctx.fillRect(handleX + 1, fy - handleH / 2 + 0.5, handleW - 2, handleH * 0.25);
+  // Handle — RIGHT side of the door
+  drawFaceRect(R + R * 0.30, 0, R * 0.225, R * 0.095, PAL.steelDk, null);
+  // Handle highlight
+  const hh0 = facePoint(R + R * 0.08, -R * 0.05);
+  const hh1 = facePoint(R + R * 0.52, -R * 0.05);
+  const hh2 = facePoint(R + R * 0.52, -R * 0.02);
+  const hh3 = facePoint(R + R * 0.08, -R * 0.02);
+  ctx.beginPath();
+  ctx.moveTo(hh0.x, hh0.y); ctx.lineTo(hh1.x, hh1.y);
+  ctx.lineTo(hh2.x, hh2.y); ctx.lineTo(hh3.x, hh3.y);
+  ctx.closePath();
+  ctx.fillStyle = PAL.steelHi; ctx.fill();
 
-  // Open / robbery glow halo
+  // Open / robbery glow halo — softly elliptical to match the door shape
   if (vaultOpen || robberyActive) {
     ctx.fillStyle = robberyActive ? "rgba(220,80,60,0.10)" : "rgba(220,170,90,0.10)";
-    ctx.beginPath(); ctx.arc(fx, fy, r * 1.58, 0, Math.PI*2); ctx.fill();
+    buildDoorRing(R * 1.58); ctx.fill();
   }
+}
+
+// ─── DESK NAMEPLATE — one source of truth ──────────────────────────────────
+// Every desk (manager, loan, security) and every teller window calls this
+// helper, so plate geometry, font, and colors stay consistent across roles.
+// Per-call overrides go through `opts` (e.g. fontSize, padX, padY) — and any
+// override needs a `// reason:` comment at the call site explaining why this
+// specific desk deviates. Default font is 7px bold Nunito brass-on-black.
+function drawDeskNameplate(ctx, { x, y }, label, opts = {}) {
+  const fontSize = opts.fontSize ?? 7;
+  const padX     = opts.padX     ?? 4;
+  const padY     = opts.padY     ?? 2;
+  ctx.font = `bold ${fontSize}px 'Nunito',sans-serif`;
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
+  const w = Math.ceil(ctx.measureText(label).width) + padX * 2;
+  const h = fontSize + padY * 2;
+  ctx.fillStyle = "#1a140e";
+  ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  ctx.fillStyle = PAL.brass;
+  ctx.fillText(label, x, y);
+  ctx.textBaseline = "alphabetic"; // restore default so other text isn't affected
 }
 
 // ─── MANAGER & SECURITY DESKS — sober walnut with monitor ───────────────────
 function drawDesks(ctx) {
   // Manager desk
   const md = toIso(1.2, 2.0);
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.beginPath(); ctx.ellipse(md.x, md.y + 14, 38, 5, 0, 0, Math.PI*2); ctx.fill();
   const mg = ctx.createLinearGradient(0, md.y-12, 0, md.y+12);
   mg.addColorStop(0, PAL.walnutHi);
   mg.addColorStop(1, PAL.walnut);
@@ -423,12 +455,12 @@ function drawDesks(ctx) {
   ctx.beginPath(); ctx.arc(md.x + 26, md.y - 17, 3, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = "rgba(255,220,150,0.35)";
   ctx.beginPath(); ctx.ellipse(md.x + 24, md.y - 12, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Nameplate
+  drawDeskNameplate(ctx, { x: md.x, y: md.y + 1 }, "MANAGER");
 
   // Loan officer desk — pushed back into the gy=1 zone so it stops
   // visually crowding the manager desk one tile in front of it
   const ld = toIso(2.0, 1.5);
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.beginPath(); ctx.ellipse(ld.x, ld.y + 12, 30, 4, 0, 0, Math.PI*2); ctx.fill();
   const lg = ctx.createLinearGradient(0, ld.y-10, 0, ld.y+10);
   lg.addColorStop(0, PAL.walnutHi); lg.addColorStop(1, PAL.walnut);
   ctx.fillStyle = lg;
@@ -439,17 +471,13 @@ function drawDesks(ctx) {
   ctx.fillStyle = "#3a6a3a";
   ctx.fillRect(ld.x - 23, ld.y - 8, 46, 1);
   // Nameplate
-  ctx.fillStyle = "#1a140e";
-  ctx.fillRect(ld.x - 12, ld.y - 2, 24, 6);
-  ctx.fillStyle = PAL.brass;
-  ctx.font = "bold 4px 'Nunito',sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("LOANS", ld.x, ld.y + 2);
+  drawDeskNameplate(ctx, { x: ld.x, y: ld.y + 1 }, "LOANS");
 
-  // Security desk
-  const sd = toIso(2.5, 1.0);
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.beginPath(); ctx.ellipse(sd.x, sd.y + 12, 40, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Security desk — shifted right from gx=2.5 to gx=3.0 to clear the loan
+  // desk at gx=2.0. At 72px wide vs the loan desk's 52px, the security desk
+  // is the cheaper move; the gy=1 zone still has room before the vault
+  // footprint at gx=5.
+  const sd = toIso(3.0, 1.0);
   const sg = ctx.createLinearGradient(0, sd.y-10, 0, sd.y+10);
   sg.addColorStop(0, "#3a3530");
   sg.addColorStop(1, "#2a2520");
@@ -467,6 +495,8 @@ function drawDesks(ctx) {
     ctx.fillStyle = "rgba(120,200,140,0.35)";
     ctx.fillRect(cx - 5, sd.y - 18 + (i%2)*3, 10, 1);
   }
+  // Nameplate
+  drawDeskNameplate(ctx, { x: sd.x, y: sd.y + 1 }, "SECURITY");
 }
 
 // Waiting chairs — leather club chairs. One drawn per seat position, so the
@@ -474,9 +504,6 @@ function drawDesks(ctx) {
 function drawChairs(ctx, seatPositions = []) {
   for (const seat of seatPositions) {
     const { x, y } = toIso(seat.gx, seat.gy);
-    // Shadow
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.beginPath(); ctx.ellipse(x, y + 8, 11, 3, 0, 0, Math.PI*2); ctx.fill();
     // Chair base
     ctx.fillStyle = "#3a2a20";
     ctx.beginPath(); ctx.roundRect(x-9, y-3, 18, 11, 3); ctx.fill();
@@ -514,7 +541,9 @@ function drawFurniture(ctx, opts) {
   drawVault(ctx, opts);
   drawDesks(ctx);
   drawChairs(ctx, opts.seatPositions);
-  [toIso(0.7, 4.5), toIso(6.3, 4.5), toIso(0.7, 2.0), toIso(6.3, 2.0)]
+  // Plants pulled in onto the painted floor (gx 1.0/6.0 instead of 0.7/6.3)
+  // so they sit on tiles rather than bare canvas.
+  [toIso(1.0, 4.5), toIso(6.0, 4.5), toIso(1.0, 2.0), toIso(6.0, 2.0)]
     .forEach(p => drawPlant(ctx, p));
 }
 
@@ -749,18 +778,17 @@ export function renderFrame(ctx, renderState, ts) {
 
   drawFurniture(ctx,{ vaultOpen, robberyActive:activeEvent==="robbery", seatPositions });
 
-  // Loan officer — drawn behind the desk (gy=0.95) regardless of where the
+  // Loan officer — drawn behind the desk (gy=1.15) regardless of where the
   // customer routes (loanDeskPos at gy=2.4 is the customer's stop position).
   // Ghost when unhired; live named chibi when staff.loanOfficers > 0.
   //
-  // The 0.55-tile setback from the desk visual at gy=1.5 mirrors the teller
-  // geometry (teller at gy=2.45, customer at gy=3.10 — also a 0.55+ gap).
-  // The desk used to sit at gy=2.0 next to the manager desk, but the two
-  // were one tile apart and visually merged; pushing it back to gy=1.5
-  // gives the manager desk room to breathe. Setback preserved so the
-  // chibi's legs still clear the desk top.
+  // Setback from desk visual at gy=1.5 is 0.35 tiles. The 2026-05-13 fix
+  // established 0.55 as the minimum that cleared leg-overlap with the older,
+  // taller desk drawing; this tightening rides on the slimmer back-row desk
+  // shape and a playtest read of "officer too far from his desk." If legs
+  // overlap the desk top again, raise this back toward 0.55.
   {
-    const p = toIso(2.0, 0.95);
+    const p = toIso(2.0, 1.15);
     if (staff.loanOfficers === 0) {
       drawChibi(ctx, p.x, p.y-8, {id:900, role:"teller", skinTone:"#c47840", hairColor:"#2c1810", outfitColor:"#3a6a4a", isMoving:false, emotion:"neutral"}, ts, {ghost:true, scale:0.85});
     } else if (loanOfficerRoster && loanOfficerRoster.length > 0) {
@@ -768,7 +796,7 @@ export function renderFrame(ctx, renderState, ts) {
       drawChibi(ctx, p.x, p.y-8, {id:910, role:"teller", skinTone:def.skin, hairColor:def.hair, outfitColor:def.outfit, isMoving:false, emotion:"neutral"}, ts, {scale:0.9});
     }
   }
-  if (staff.security===0)     { const p=toIso(2.5,1.05);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  if (staff.security===0)     { const p=toIso(3.0,1.05);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {
     const def=tellerRoster[i];

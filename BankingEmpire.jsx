@@ -77,11 +77,11 @@ const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
 // which made the seated chibis visually merge with the teller backstage.
 const SEAT_POSITIONS = [
   // Front row — closer to the entrance
-  {gx:0.9, gy:3.90}, {gx:1.3, gy:3.90}, {gx:1.7, gy:3.90},
-  {gx:2.1, gy:3.90}, {gx:2.5, gy:3.90},
+  {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
+  {gx:2.2, gy:3.90}, {gx:2.6, gy:3.90},
   // Back row — same columns, one half-tile back
-  {gx:0.9, gy:4.25}, {gx:1.3, gy:4.25}, {gx:1.7, gy:4.25},
-  {gx:2.1, gy:4.25}, {gx:2.5, gy:4.25},
+  {gx:1.0, gy:4.25}, {gx:1.4, gy:4.25}, {gx:1.8, gy:4.25},
+  {gx:2.2, gy:4.25}, {gx:2.6, gy:4.25},
 ];
 // Lobby tiles — overflow standing positions for when seats and the queue line
 // are both full. Each tile is uniquely claimed (same allocator pattern as
