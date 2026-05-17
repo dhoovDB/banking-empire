@@ -143,12 +143,31 @@ and doesn't enforce consequences for bad decisions.*
 *2026-05-16 "Default to consistency" principle in CLAUDE.md is the rule;*
 *this audit is the cleanup of what already drifted before the rule landed.*
 
-- [ ] **Sweep for duplicated visual primitives.** Targets: any place we draw
-      the "same thing in two places" (plates, badges, headers, banners,
-      status pills). Each duplicate either becomes one shared helper or
-      earns a `// reason:` comment explaining why it diverges. Start in
-      `renderer/canvas.js`, then `ui/`. Reference the 2026-05-16 desk
-      nameplate helper as the pattern.
+- [x] **Sweep for duplicated visual primitives — `renderer/canvas.js`.**
+      Three extractions landed: `verticalGradient(ctx, y0, y1, c0, c1)`
+      collapses the four createLinearGradient/addColorStop incantations
+      (manager desk, loan desk, security desk, counter front); `drawDeskBody`
+      collapses the manager and security desk bodies into one helper while
+      the loan desk keeps its green-baize divergence with a `// reason:`
+      comment; `EVENT_VISUALS` is now one map for banner label + accent +
+      border, shared by `drawEventBanner` and `drawEventBorder`. Hover ring
+      and interact timer kept their separate palettes with a `// reason:`
+      note (presence vs urgency carry different signals). Surfaced two
+      visual fixes during smoke test: security desk relocated from the
+      back wall (gx=3, gy=1) to in front of the vault (gx=5.5, gy=2.3)
+      where it was overshooting the painted floor; back-left plant at
+      (gx=1, gy=2) removed since it was crowding the manager desk.
+      88/88 tests still passing. (2026-05-17)
+
+- [ ] **Sweep for duplicated visual primitives — `ui/`.** Same pattern as
+      the canvas sweep above. Targets: KPI rows, status pills, modal
+      shells, button styles, anything that reads as "the same thing in
+      two places." During the canvas sweep we noticed `EVT_DISPLAY` in
+      `config/events.js` (title/description/color) and the renderer's
+      `EVENT_VISUALS` (label/color/border) are parallel maps with
+      *different* colors for the same events — the renderer pre-dated the
+      config map and never got pulled into it. Resolve as part of this
+      sweep or as a separate config-consolidation task.
 
 - [ ] **Sweep for parallel branches in engine handlers.** `evaluateCharacter`,
       `applyCommand`, and `resolveEvent` each have role-based switches that

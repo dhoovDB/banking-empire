@@ -67,6 +67,19 @@ for (let gy = 1; gy <= 5; gy++) {
 
 const TILE_LABELS = {}; // tile labels removed — they fought the cleaner look
 
+// ─── SHARED DRAWING IDIOMS ───────────────────────────────────────────────────
+// Vertical two-stop linear gradient — the dominant pattern for desk fronts,
+// counter faces, and any "lit from above" furniture surface. Without this,
+// each call site re-spells the 3-line createLinearGradient / addColorStop /
+// addColorStop dance and small details drift (range, color order, stop
+// positions). One helper, one shape.
+function verticalGradient(ctx, y0, y1, c0, c1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, c0);
+  g.addColorStop(1, c1);
+  return g;
+}
+
 // ─── FLOOR & WALLS ────────────────────────────────────────────────────────────
 function drawFloor(ctx, gx, gy, color) {
   const { x, y } = toIso(gx, gy);
@@ -178,10 +191,7 @@ function drawTellerCounter(ctx, { numTellers, activeTellers }) {
   const tl = toIso(startGx, gyBack);  // back-left
 
   // Front face — walnut, slightly darker than top
-  const frontGrad = ctx.createLinearGradient(0, bl.y, 0, bl.y + faceH);
-  frontGrad.addColorStop(0, PAL.walnutLt);
-  frontGrad.addColorStop(1, PAL.walnut);
-  ctx.fillStyle = frontGrad;
+  ctx.fillStyle = verticalGradient(ctx, bl.y, bl.y + faceH, PAL.walnutLt, PAL.walnut);
   ctx.beginPath();
   ctx.moveTo(bl.x, bl.y);
   ctx.lineTo(br.x, br.y);
@@ -427,17 +437,42 @@ function drawDeskNameplate(ctx, { x, y }, label, opts = {}) {
   ctx.textBaseline = "alphabetic"; // restore default so other text isn't affected
 }
 
+// ─── DESK BODY — gradient roundRect base + dark back-edge strip ─────────────
+// Manager and security desks share this exact shape; only widths, heights,
+// and colors differ. Loan desk diverges (green-baize top instead of a flat
+// dark back strip) and so paints its own body inline below with a `// reason:`
+// comment. Future desks should default to this helper.
+function drawDeskBody(ctx, { x, y }, opts) {
+  const {
+    width, height, gradHalfH,
+    topColor, bottomColor,
+    accentColor, accentHeight = 4,
+    // bodyOffsetY shifts the body roundRect vertically relative to anchor y.
+    // Existing desks were hand-tuned by eye and ended up with slightly different
+    // centerings (manager +1, security 0). Preserved per-desk rather than
+    // silently re-centering during this extraction.
+    bodyOffsetY = 0,
+  } = opts;
+  ctx.fillStyle = verticalGradient(ctx, y - gradHalfH, y + gradHalfH, topColor, bottomColor);
+  ctx.beginPath();
+  ctx.roundRect(x - width / 2, y - height / 2 + bodyOffsetY, width, height, 3);
+  ctx.fill();
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.roundRect(x - width / 2, y - height / 2 - 2 + bodyOffsetY, width, accentHeight, 2);
+  ctx.fill();
+}
+
 // ─── MANAGER & SECURITY DESKS — sober walnut with monitor ───────────────────
 function drawDesks(ctx) {
   // Manager desk
   const md = toIso(1.2, 2.0);
-  const mg = ctx.createLinearGradient(0, md.y-12, 0, md.y+12);
-  mg.addColorStop(0, PAL.walnutHi);
-  mg.addColorStop(1, PAL.walnut);
-  ctx.fillStyle = mg;
-  ctx.beginPath(); ctx.roundRect(md.x - 34, md.y - 8, 68, 18, 3); ctx.fill();
-  ctx.fillStyle = "#1f1a16";
-  ctx.beginPath(); ctx.roundRect(md.x - 34, md.y - 10, 68, 4, 2); ctx.fill();
+  drawDeskBody(ctx, md, {
+    width: 68, height: 18, gradHalfH: 12,
+    topColor: PAL.walnutHi, bottomColor: PAL.walnut,
+    accentColor: "#1f1a16", accentHeight: 4,
+    bodyOffsetY: 1, // reason: preserves manager desk's original 1px-low centering
+  });
   // Monitor
   ctx.fillStyle = "#1a1d22";
   ctx.beginPath(); ctx.roundRect(md.x - 12, md.y - 22, 24, 14, 2); ctx.fill();
@@ -459,11 +494,14 @@ function drawDesks(ctx) {
   drawDeskNameplate(ctx, { x: md.x, y: md.y + 1 }, "MANAGER");
 
   // Loan officer desk — pushed back into the gy=1 zone so it stops
-  // visually crowding the manager desk one tile in front of it
+  // visually crowding the manager desk one tile in front of it.
+  //
+  // reason: diverges from drawDeskBody — uses a green baize top (inset 2px on
+  // each side with a paler highlight stripe) instead of the flat dark back-edge
+  // strip that manager and security share. The baize is the desk's tell: this
+  // is a writing/signing desk, not a transaction or surveillance station.
   const ld = toIso(2.0, 1.5);
-  const lg = ctx.createLinearGradient(0, ld.y-10, 0, ld.y+10);
-  lg.addColorStop(0, PAL.walnutHi); lg.addColorStop(1, PAL.walnut);
-  ctx.fillStyle = lg;
+  ctx.fillStyle = verticalGradient(ctx, ld.y - 10, ld.y + 10, PAL.walnutHi, PAL.walnut);
   ctx.beginPath(); ctx.roundRect(ld.x - 26, ld.y - 7, 52, 15, 3); ctx.fill();
   // Green baize top
   ctx.fillStyle = "#2a4a2a";
@@ -473,18 +511,18 @@ function drawDesks(ctx) {
   // Nameplate
   drawDeskNameplate(ctx, { x: ld.x, y: ld.y + 1 }, "LOANS");
 
-  // Security desk — shifted right from gx=2.5 to gx=3.0 to clear the loan
-  // desk at gx=2.0. At 72px wide vs the loan desk's 52px, the security desk
-  // is the cheaper move; the gy=1 zone still has room before the vault
-  // footprint at gx=5.
-  const sd = toIso(3.0, 1.0);
-  const sg = ctx.createLinearGradient(0, sd.y-10, 0, sd.y+10);
-  sg.addColorStop(0, "#3a3530");
-  sg.addColorStop(1, "#2a2520");
-  ctx.fillStyle = sg;
-  ctx.beginPath(); ctx.roundRect(sd.x - 36, sd.y - 8, 72, 16, 3); ctx.fill();
-  ctx.fillStyle = "#1a1812";
-  ctx.beginPath(); ctx.roundRect(sd.x - 36, sd.y - 10, 72, 4, 2); ctx.fill();
+  // Security desk — placed in front of the vault at gx=5.5, gy=2.3 so the
+  // guard reads as "stationed at the safe." Earlier back-row position
+  // (gx=3.0, gy=1.0) put the desk's top edge above the painted floor row
+  // and overshooting into wall space. This position sits cleanly on the
+  // gy=2 row in front of the vault footprint (gx=5-6, gy=1-2), still
+  // clear of the teller counter back edge at gy=2.55.
+  const sd = toIso(5.5, 2.3);
+  drawDeskBody(ctx, sd, {
+    width: 72, height: 16, gradHalfH: 10,
+    topColor: "#3a3530", bottomColor: "#2a2520",
+    accentColor: "#1a1812", accentHeight: 4,
+  });
   // CCTV bank — three small monitors
   for (let i = 0; i < 3; i++) {
     const cx = sd.x - 18 + i*18;
@@ -542,8 +580,11 @@ function drawFurniture(ctx, opts) {
   drawDesks(ctx);
   drawChairs(ctx, opts.seatPositions);
   // Plants pulled in onto the painted floor (gx 1.0/6.0 instead of 0.7/6.3)
-  // so they sit on tiles rather than bare canvas.
-  [toIso(1.0, 4.5), toIso(6.0, 4.5), toIso(1.0, 2.0), toIso(6.0, 2.0)]
+  // so they sit on tiles rather than bare canvas. The back-left plant at
+  // (1.0, 2.0) was removed because it crowded the manager desk one tile
+  // over at (1.2, 2.0); three plants frame the room without fighting the
+  // furniture.
+  [toIso(1.0, 4.5), toIso(6.0, 4.5), toIso(6.0, 2.0)]
     .forEach(p => drawPlant(ctx, p));
 }
 
@@ -692,11 +733,24 @@ function drawHUD(ctx, { served, deposited, walkouts, queueLength, greets=0 }) {
   });
 }
 
+// One source of truth for how a branch event reads on screen — banner label,
+// banner accent color, and (when applicable) the canvas-edge border treatment.
+// drawEventBanner and drawEventBorder both read from this map; adding a new
+// event means one entry here instead of touching two functions.
+const EVENT_VISUALS = {
+  robbery:    { label: "ROBBERY",     color: "#d96060", border: { color: "#c84a4a", width: 3, dash: null } },
+  inspection: { label: "INSPECTION",  color: "#e8b25a", border: { color: "#e8b25a", width: 2, dash: [8, 4] } },
+  rush:       { label: "BANK RUSH",   color: "#e89050", border: null },
+  whale:      { label: "VIP CLIENT",  color: "#c8a14a", border: null },
+  outage:     { label: "SYSTEM DOWN", color: "#9a8f7e", border: null },
+};
+const DEFAULT_EVENT_COLOR = "#9a8f7e";
+
 function drawEventBanner(ctx, activeEvent) {
   if (!activeEvent) return;
-  const labels = { robbery:"ROBBERY", inspection:"INSPECTION", rush:"BANK RUSH", whale:"VIP CLIENT", outage:"SYSTEM DOWN" };
-  const colors = { robbery:"#d96060", inspection:"#e8b25a", rush:"#e89050", whale:"#c8a14a", outage:"#9a8f7e" };
-  const text=labels[activeEvent]||activeEvent.toUpperCase(), color=colors[activeEvent]||"#9a8f7e";
+  const visual = EVENT_VISUALS[activeEvent];
+  const text  = visual?.label ?? activeEvent.toUpperCase();
+  const color = visual?.color ?? DEFAULT_EVENT_COLOR;
   ctx.font="bold 10px 'Nunito',sans-serif"; ctx.textAlign="center";
   const tw=ctx.measureText(text).width+34;
   ctx.fillStyle=color+"22"; ctx.beginPath(); ctx.roundRect(CANVAS_W/2-tw/2,8,tw,22,5); ctx.fill();
@@ -705,11 +759,22 @@ function drawEventBanner(ctx, activeEvent) {
 }
 
 function drawEventBorder(ctx, activeEvent) {
-  if (activeEvent==="robbery") { ctx.strokeStyle="#c84a4a"; ctx.lineWidth=3; ctx.strokeRect(2,2,CANVAS_W-4,CANVAS_H-4); }
-  if (activeEvent==="inspection") { ctx.setLineDash([8,4]); ctx.strokeStyle="#e8b25a"; ctx.lineWidth=2; ctx.strokeRect(2,2,CANVAS_W-4,CANVAS_H-4); ctx.setLineDash([]); }
+  const border = EVENT_VISUALS[activeEvent]?.border;
+  if (!border) return;
+  if (border.dash) ctx.setLineDash(border.dash);
+  ctx.strokeStyle = border.color;
+  ctx.lineWidth = border.width;
+  ctx.strokeRect(2, 2, CANVAS_W - 4, CANVAS_H - 4);
+  if (border.dash) ctx.setLineDash([]);
 }
 
-// Highlight ring for hovered character (player interaction)
+// Highlight ring for hovered character (player interaction).
+//
+// reason: deliberately does NOT share a role-color helper with
+// drawInteractTimer. Hover marks *presence* (here's a thing you can click)
+// and uses one shade per role; the interact timer marks *urgency* (act
+// before this disappears) with a tighter two-color palette. Collapsing them
+// would force one of the two to lose its specific signal.
 function drawHoverRing(ctx, char, ts) {
   if (!char) return;
   const { x, y } = toIso(char.gx, char.gy);
@@ -796,7 +861,7 @@ export function renderFrame(ctx, renderState, ts) {
       drawChibi(ctx, p.x, p.y-8, {id:910, role:"teller", skinTone:def.skin, hairColor:def.hair, outfitColor:def.outfit, isMoving:false, emotion:"neutral"}, ts, {scale:0.9});
     }
   }
-  if (staff.security===0)     { const p=toIso(3.0,1.05);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
+  if (staff.security===0)     { const p=toIso(5.5,2.35);drawChibi(ctx,p.x,p.y-8,{id:901,role:"teller",skinTone:"#e8a870",hairColor:"#1a1a2e",outfitColor:"#2a3a2a",isMoving:false,emotion:"neutral"},ts,{ghost:true,scale:0.85}); }
 
   for (let i=0; i<Math.min(staff.tellers, tellerRoster.length, tellerSlots.length); i++) {
     const def=tellerRoster[i];
