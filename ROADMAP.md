@@ -8,22 +8,22 @@ with a date. When an idea gets cut, note why.
 
 ## Guiding principles
 
-- Every mechanic should teach something true about how banking works
-- Complexity unlocks gradually — era 1 is simple enough for anyone
-- A player who finishes 20 quarters should be able to explain NIM, CAR, and NPL to a non-banker
-- Fun is a feature. If it isn't fun, the education doesn't land.
+- The player learns something true about banking from every mechanic. A mechanic that doesn't teach gets cut.
+- A first-time player makes it through era 1 without ever opening a tutorial.
+- A player who finishes 20 quarters can explain NIM, CAR, and NPL to a non-banker.
+- The player has fun for 20 quarters straight. Fun isn't decoration — it's the delivery mechanism for the education.
 
 ---
 
 ## Definition of done — v1
 
 **Banking Empire v1 ships when:**
-- [ ] The game runs end-to-end for a full 20-quarter playthrough without crashing
-- [ ] A hosted demo link exists (GitHub Pages) and works on desktop
-- [ ] A hiring manager can understand what the game is within 90 seconds of opening the README
-- [ ] No known bugs that break core gameplay (rate sliders, sim loop, quarterly report)
-- [ ] Setup costs are correctly deducted when the sim starts
-- [ ] At least two loss conditions fire correctly (negative equity, NPL receivership)
+- [ ] A player can run a full 20-quarter playthrough start to finish in one sitting without hitting a crash
+- [ ] Anyone with the link can play in a desktop browser without cloning the repo
+- [ ] An outside reader understands what the game is within 90 seconds of opening the README
+- [ ] A player pulling a rate slider, watching a tick, or reading the quarterly report sees the response they expect — every time
+- [ ] A player who staffs up at setup sees the cost on their balance sheet before quarter 1 begins
+- [ ] A player who makes catastrophically bad decisions actually loses the game (negative equity or NPL receivership)
 
 Everything beyond this is v2. Resist the pull to keep adding until v1 ships.
 

@@ -14,10 +14,10 @@ understand React architecture better.
 
 **[https://dhoovdb.github.io/banking-empire/](https://dhoovdb.github.io/banking-empire/)**
 
-- **Era 1:** Community Bank — master NIM, CAR, and NPL basics
-- **Era 2:** Regional Bank — Fed rate decisions, product expansion
-- **Era 3:** Commercial Bank — recession mechanics, acquisition opportunities
-- **Era 4:** National Bank — systemic risk, institutional depositors
+- **Era 1: Community Bank** — Learn why NIM, CAR, and NPL are the three numbers that keep a real bank alive
+- **Era 2: Regional Bank** — Time your response to Fed rate moves and decide which new products are worth launching
+- **Era 3: Commercial Bank** — Survive a recession and judge whether the acquisition opportunity is worth the integration risk
+- **Era 4: National Bank** — Manage institutional depositor concentration without becoming the systemic risk the Fed has to bail out
 
 ---
 
