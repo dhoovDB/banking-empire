@@ -36,6 +36,13 @@ from all four layers because it owns all React state.
 | `renderer/canvas.js` | Receives state and draws. No calculations. |
 | `BankingEmpire.jsx` | Only smart component. Owns state, passes callbacks down. |
 
+**Default to consistency across similar elements.** When two visual or logical elements play the
+same role (desk nameplates, character labels, KPI rows, status banners, event handlers of the
+same shape), they share one rendering path with one set of defaults. Diverge only with a
+`// reason:` comment at the call site explaining why this case is special. Two ad-hoc copies
+become three; three become the spaghetti you have to refactor under deadline. The cost of one
+unjustified copy is the cost of every future copy.
+
 ### The test
 
 Adding a new event type = one entry in `config/events.js`. The engine and 
@@ -60,13 +67,6 @@ Specific things to watch for:
 - Logic appearing in `config/` files → belongs in `engine/`
 - Engine functions that call `setState` or read React refs → remove the 
   React dependency
-
-**Default to consistency across similar elements.** When two visual or logical elements play the
-same role (desk nameplates, character labels, KPI rows, status banners, event handlers of the
-same shape), they share one rendering path with one set of defaults. Diverge only with a
-`// reason:` comment at the call site explaining why this case is special. Two ad-hoc copies
-become three; three become the spaghetti you have to refactor under deadline. The cost of one
-unjustified copy is the cost of every future copy.
 
 ### `config/` — Game rules as data
 
