@@ -93,12 +93,10 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 
 ### 1d. Latent bug found during plan exploration
 
-- [ ] **`vaultPos` referenced as bare variable in robber pathing** —
-      `engine/simulation.js:67,69` references `vaultPos` directly instead of
-      `simState.vaultPos`. ReferenceError fires the moment a robber tries to
-      walk to the vault. Robberies are era 2+ only, so this hasn't been
-      triggered in playtest. One-line fix; bundle with the next robbery-related
-      task.
+- [x] **`vaultPos` referenced as bare variable in robber pathing** — fixed by
+      adding `vaultPos` to the `simState` destructure at the top of
+      `evaluateCharacter`. Bundled with the §5 engine-handler sweep on
+      2026-05-19 since that pass was reading the same handlers. (2026-05-19)
 
 ### 1b. Queue behaviour (completed this session)
 
@@ -169,15 +167,32 @@ and doesn't enforce consequences for bad decisions.*
       config map and never got pulled into it. Resolve as part of this
       sweep or as a separate config-consolidation task.
 
-- [ ] **Sweep for parallel branches in engine handlers.** `evaluateCharacter`,
-      `applyCommand`, and `resolveEvent` each have role-based switches that
-      have grown wider one role at a time. Look for branches that differ
-      only in a single constant or a single output field — those collapse
-      to one branch with a per-role table.
+- [x] **Sweep for parallel branches in engine handlers.** Five cuts landed in
+      `engine/simulation.js`: (1) `MOVE_TO_EXIT` command removed entirely —
+      it was a near-duplicate of `MOVE` with a 1.4-default speed that caused
+      the 2026-05-11 inspector-flying bug; all four callers now use
+      `MOVE` with an explicit `target: exitPos`. (2) `walkOrArrive(char,
+      target, arriveCmd, speed)` helper collapses seven near-identical
+      "if near target, fire arrive cmd; else MOVE" snippets (robber entering
+      & leaving, inspector entering & wandering & leaving, customer
+      advancing & advancing-via-waypoint, customer leaving & leaving-via-
+      waypoint). (3) `WALKOUT` and `FLEE` cases in `applyCommand` merged —
+      same shape, differing only in emotion + bubble (frustration vs
+      external trigger). (4) `calculateEraProgressDelta` 12-line condition
+      switch replaced by two `GAIN_PREDICATES` / `LOSS_PREDICATES` tables +
+      one `sumIf` reducer — adding a new condition is now a row, not a
+      branch. (5) `resolveEvent` audited and left alone — its four event
+      branches are genuinely different (different roles, spawn positions,
+      bubbles, sometimes extra wander state); a table doesn't pay off.
+      Net -11 lines, but the wins are denser than the line count
+      (one footgun removed, one command type removed, one switch became
+      data). §1d `vaultPos` bug fixed in the same pass. 88/88 tests
+      still passing. (2026-05-19)
 
-- [ ] **Sweep config for arrow-function values.** CLAUDE.md says config is
-      data only. Verify nothing has crept in. Quick grep for `=>` under
-      `config/`.
+- [x] **Sweep config for arrow-function values.** Grep for both `=>` and
+      `function(` across `config/` returned zero hits. The data-only
+      principle has held since the original refactor. No drift to clean
+      up. (2026-05-19)
 
 ### 6. README demo video
 *Problem: a hiring manager won't clone a repo to evaluate a portfolio piece.*
@@ -272,6 +287,20 @@ and doesn't enforce consequences for bad decisions.*
 - [ ] **Inspector click feedback in UI** — when inspector is distracted, show a banner or log entry confirming the fine amount was reduced (e.g. "Fine reduced to $1,250"). Player currently has to wait for the report screen to see the effect.
 
 - [ ] **Robber click requires security hired** — currently clicking a robber works even with security = 0 (no security staff to dispatch). Guard the interaction: if `securityCount === 0`, show a "No security on duty" bubble instead.
+
+- [ ] **Loan customer routes to a teller position instead of the loan
+      desk** — observed 2026-05-19 during the §5 engine-handler sweep
+      smoke test. Setup: 1 loan officer hired, era 1, customer with
+      `loanAmt > 0` arrived and walked toward a spot next to the tellers
+      instead of the loan desk at `loanDeskPos`. The §5 refactor preserved
+      the `advancing` block's branch logic byte-for-byte (`target =
+      char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex]`),
+      so this is most likely a pre-existing bug that earlier playtests
+      missed — probably in `findFreeSlot` (which sets `useLoanDesk: true`)
+      or in `CLAIM_SLOT`'s waypoint+target wiring. Worth an investigation
+      pass: log what `useLoanDesk`, `tellerIndex`, and `loanDeskPos` look
+      like on the loan customer's first `advancing` tick to isolate which
+      stage is dropping the loan-desk routing.
 
 - [ ] **Loan officer count beyond 1 has no effect** — `STAFF_DEFINITIONS.loanOfficers.max` is 3, but every check in `engine/simulation.js` (lines 138, 145, 297) is binary (`loanOfficers > 0`), and there's a single `loanDeskPos` / `loanDeskOccupied`. Hiring 2 or 3 burns $8k + $4k/qtr each for zero throughput gain. The renderer also only draws `loanOfficerRoster[0]`, so the player who hires a second officer sees no new chibi — a 2026-05-13 playtest confirmed this visually (player described it as "the 2nd loan officer is a ghost again"). Two ways to fix: (a) scale loan desks with officer count (second desk at 2, third at 3), or (b) cap `max: 1` and accept the simpler model. (a) is more interesting gameplay, (b) is honest about what the game models today. Discovered while writing setup-screen tooltips on 2026-05-03.
 

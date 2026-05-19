@@ -57,17 +57,14 @@ export function createCustomer(id, queuePos, role = "customer") {
 
 // ─── CHARACTER EVALUATION (pure) ─────────────────────────────────────────────
 export function evaluateCharacter(char, simState, policy) {
-  const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos } = simState;
+  const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos, vaultPos } = simState;
   const beh     = CUSTOMER_BEHAVIOUR;
   const impacts = POLICY_IMPACTS;
 
   // Robber
   if (char.role === "robber") {
-    if (char.state === "entering") {
-      return isNear(char, vaultPos)
-        ? { type: "ROBBER_START_VAULT", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: vaultPos, speed: 0.043 };
-    }
+    if (char.state === "entering")
+      return walkOrArrive(char, vaultPos, { type: "ROBBER_START_VAULT", charId: char.id }, 0.043);
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
       const baseChance = simState.securityCount > 0 ? 0.008 : 0;
@@ -76,36 +73,22 @@ export function evaluateCharacter(char, simState, policy) {
       if (caught) return { type: "ROBBER_CAUGHT", charId: char.id };
       return { type: "ROBBER_PROGRESS", charId: char.id };
     }
-    if (char.state === "leaving") {
-      if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.056 };
-    }
+    if (char.state === "leaving")
+      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, 0.056);
   }
 
   // Inspector
   if (char.role === "inspector") {
-    if (char.state === "entering") {
-      const dest = simState.managerPos;
-      return isNear(char, dest)
-        ? { type: "INSPECTOR_START", charId: char.id }
-        : { type: "MOVE", charId: char.id, target: dest, speed: 0.032 };
-    }
+    if (char.state === "entering")
+      return walkOrArrive(char, simState.managerPos, { type: "INSPECTOR_START", charId: char.id }, 0.032);
     if (char.state === "inspecting") {
       const wanders = char.wanderTargets || [];
       const idx     = char.wanderIdx    || 0;
       if (idx >= wanders.length) return { type: "INSPECTOR_DONE", charId: char.id };
-      const target = wanders[idx].pos;
-      if (isNear(char, target)) return { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id };
-      return { type: "MOVE", charId: char.id, target, speed: 0.032 };
+      return walkOrArrive(char, wanders[idx].pos, { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id }, 0.032);
     }
-    if (char.state === "leaving") {
-      if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-      // Speed matches the inspector's normal wander pace (0.032). Without it,
-      // MOVE_TO_EXIT falls through to applyCommand's 1.4 default — ~35× a
-      // normal walk — and the inspector flies off the canvas when leaving
-      // (either via INSPECTOR_DONE or via the player's distract click).
-      return { type: "MOVE_TO_EXIT", charId: char.id, speed: 0.032 };
-    }
+    if (char.state === "leaving")
+      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, 0.032);
   }
 
   // Customer
@@ -172,17 +155,14 @@ export function evaluateCharacter(char, simState, policy) {
   if (char.state === "advancing") {
     // Loan customers route around the left end of the teller counter — they hit
     // the bypass waypoint first, then continue to the loan desk.
-    if (char.nextWaypoint) {
-      if (isNear(char, char.nextWaypoint))
-        return { type: "CLEAR_WAYPOINT", charId: char.id };
-      return { type: "MOVE", charId: char.id, target: char.nextWaypoint, speed: 0.032 };
-    }
+    if (char.nextWaypoint)
+      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, 0.032);
     const target = char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex];
     if (!target) return { type: "NOOP", charId: char.id };
-    if (isNear(char, target))
-      return { type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
-               hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0) };
-    return { type: "MOVE", charId: char.id, target, speed: 0.032 };
+    return walkOrArrive(char, target, {
+      type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
+      hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0),
+    }, 0.032);
   }
 
   if (char.state === "served") {
@@ -194,15 +174,11 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "leaving" || char.state === "fleeing") {
+    const exitSpeed = char.state === "fleeing" ? 0.062 : 0.040;
     // Loan customers retrace the bypass waypoint on the way out.
-    if (char.nextWaypoint) {
-      if (isNear(char, char.nextWaypoint))
-        return { type: "CLEAR_WAYPOINT", charId: char.id };
-      return { type: "MOVE", charId: char.id, target: char.nextWaypoint, speed: 0.040 };
-    }
-    if (isNear(char, exitPos)) return { type: "EXIT", charId: char.id };
-    return { type: "MOVE_TO_EXIT", charId: char.id,
-             speed: char.state === "fleeing" ? 0.062 : 0.040 };
+    if (char.nextWaypoint)
+      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, exitSpeed);
+    return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, exitSpeed);
   }
 
   return { type: "NOOP", charId: char.id };
@@ -213,8 +189,6 @@ export function applyCommand(command, char, simState) {
   switch (command.type) {
     case "MOVE":
       return { updatedChar: moveToward(char, command.target, command.speed), stateDeltas: {} };
-    case "MOVE_TO_EXIT":
-      return { updatedChar: moveToward(char, simState.exitPos, command.speed || 1.4), stateDeltas: {} };
     case "JOIN_WAIT":
       return { updatedChar: { ...char, state: "waiting", isMoving: false }, stateDeltas: {} };
     case "CLAIM_SLOT": {
@@ -266,23 +240,23 @@ export function applyCommand(command, char, simState) {
       return { updatedChar: { ...char, seatedAt: true, isMoving: false }, stateDeltas: {} };
     case "UPDATE_FRUSTRATION":
       return { updatedChar: { ...char, frustration: command.newFrust, emotion: command.newEmotion, isMoving: false }, stateDeltas: {} };
-    case "WALKOUT": {
-      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
-      const releasedLobby = releaseLobbyIfHeld(simState, char.lobbyId);
-      return {
-        updatedChar: { ...char, state: "fleeing", emotion: "angry", isMoving: true, seatId: null, seatedAt: false, lobbyId: null },
-        stateDeltas: {
-          walkouts: simState.walkouts + 1,
-          ...(releasedSeats && { occupiedSeats: releasedSeats }),
-          ...(releasedLobby && { occupiedLobby: releasedLobby }),
-        },
-      };
-    }
+    case "WALKOUT":
     case "FLEE": {
+      // Same shape: customer abandons the bank. WALKOUT = frustration-driven
+      // (angry, no bubble). FLEE = external trigger like a robbery (worried,
+      // help bubble). Both release every claim and bump the walkouts counter.
+      const isFlee = command.type === "FLEE";
       const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
       const releasedLobby = releaseLobbyIfHeld(simState, char.lobbyId);
       return {
-        updatedChar: { ...char, state: "fleeing", emotion: "worried", bubble: command.reason === "robbery" ? "Help!" : null, bubbleTimer: 1300, isMoving: true, seatId: null, seatedAt: false, lobbyId: null },
+        updatedChar: {
+          ...char,
+          state: "fleeing", isMoving: true,
+          seatId: null, seatedAt: false, lobbyId: null,
+          emotion: isFlee ? "worried" : "angry",
+          bubble:      isFlee && command.reason === "robbery" ? "Help!" : null,
+          bubbleTimer: isFlee && command.reason === "robbery" ? 1300   : 0,
+        },
         stateDeltas: {
           walkouts: simState.walkouts + 1,
           ...(releasedSeats && { occupiedSeats: releasedSeats }),
@@ -390,25 +364,30 @@ export function resolveEvent(type, simState) {
 }
 
 // ─── ERA PROGRESS ─────────────────────────────────────────────────────────────
+// Each condition maps to a predicate. Adding a new gain/loss condition means
+// adding one row here — the rules in config/progression.js stay pure data.
+const GAIN_PREDICATES = {
+  nim:         (r, _, fin) => fin.nim        >= r.threshold,
+  served:      (r, day)    => day.served     >= r.threshold,
+  car:         (r, _, fin) => fin.car        >= r.threshold,
+  reputation:  (r, _, fin) => fin.reputation >= r.threshold,
+  whaleServed: (_, day)    => day.whaleServed,
+  noWalkouts:  (_, day)    => day.walkouts === 0,
+};
+const LOSS_PREDICATES = {
+  robbed:     (_, day)     => day.robberyLoss    > 0,
+  insFine:    (_, day)     => day.regulatoryFine > 0,
+  walkouts:   (r, day)     => day.walkouts       > r.threshold,
+  car:        (r, _, fin)  => fin.car            < r.threshold,
+  nplRatio:   (r, _, fin)  => fin.nplRatio       > r.threshold,
+  reputation: (r, _, fin)  => fin.reputation     < r.threshold,
+};
+
 export function calculateEraProgressDelta(dayResult, fin) {
-  let delta = 0;
-  for (const rule of ERA_PROGRESS_RULES.gains) {
-    if (rule.condition === "nim"         && fin.nim        >= rule.threshold) delta += rule.points;
-    if (rule.condition === "served"      && dayResult.served >= rule.threshold) delta += rule.points;
-    if (rule.condition === "car"         && fin.car        >= rule.threshold) delta += rule.points;
-    if (rule.condition === "reputation"  && fin.reputation >= rule.threshold) delta += rule.points;
-    if (rule.condition === "whaleServed" && dayResult.whaleServed)            delta += rule.points;
-    if (rule.condition === "noWalkouts"  && dayResult.walkouts === 0)         delta += rule.points;
-  }
-  for (const rule of ERA_PROGRESS_RULES.losses) {
-    if (rule.condition === "robbed"     && dayResult.robberyLoss > 0)             delta += rule.points;
-    if (rule.condition === "insFine"    && dayResult.regulatoryFine > 0)          delta += rule.points;
-    if (rule.condition === "walkouts"   && dayResult.walkouts > rule.threshold)   delta += rule.points;
-    if (rule.condition === "car"        && fin.car        < rule.threshold)       delta += rule.points;
-    if (rule.condition === "nplRatio"   && fin.nplRatio   > rule.threshold)       delta += rule.points;
-    if (rule.condition === "reputation" && fin.reputation < rule.threshold)       delta += rule.points;
-  }
-  return delta;
+  const sumIf = (rules, preds) => rules.reduce(
+    (d, r) => preds[r.condition]?.(r, dayResult, fin) ? d + r.points : d, 0);
+  return sumIf(ERA_PROGRESS_RULES.gains,  GAIN_PREDICATES)
+       + sumIf(ERA_PROGRESS_RULES.losses, LOSS_PREDICATES);
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -465,6 +444,16 @@ function releaseLobbyIfHeld(simState, lobbyId) {
 function isNear(char, target) {
   const dx = target.gx - char.gx, dy = target.gy - char.gy;
   return Math.sqrt(dx*dx + dy*dy) < 0.09;
+}
+
+// Almost every state in evaluateCharacter follows the same shape: "if I'm at
+// the target, fire an arrive command; otherwise keep walking toward it."
+// One helper kills seven 2-line repeats and a footgun (the old MOVE_TO_EXIT
+// command had a 1.4-default speed that produced the 2026-05-11 inspector bug).
+function walkOrArrive(char, target, arriveCmd, speed) {
+  return isNear(char, target)
+    ? arriveCmd
+    : { type: "MOVE", charId: char.id, target, speed };
 }
 
 function moveToward(char, target, speed = 0.032) {
