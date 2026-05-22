@@ -1,26 +1,6 @@
 import React from "react";
 import { KPI_DEFINITIONS } from "../config/economy.js";
-
-const ERA_NAMES = { 1: "Community Bank", 2: "Regional Bank", 3: "Commercial Bank", 4: "National Bank" };
-
-const C = {
-  bg:     "#0f0d0b",
-  panel:  "rgba(40,28,18,0.97)",
-  border: "rgba(245,166,35,0.18)",
-  text:   "#c8b99a",
-  gold:   "#f5a623",
-  dim:    "#7a6a5a",
-  danger: "#ff6b6b",
-  warn:   "#f5c842",
-  good:   "#4ecdc4",
-};
-
-function kpiColor(key, value) {
-  const d = KPI_DEFINITIONS[key];
-  if (!d) return C.text;
-  if (d.invert) return value > d.danger ? C.danger : value > d.warn ? C.warn : C.good;
-  return value < d.danger ? C.danger : value < d.warn ? C.warn : C.good;
-}
+import { C, ERA_NAMES, panel, kpiColor } from "./theme.js";
 
 function PLRow({ label, value, sub, color }) {
   return (
@@ -59,8 +39,6 @@ const EVT_LABELS = {
 
 export default function ReportScreen({ report, fin, onNextQuarter, onRestart }) {
   const isGameOver = !!report.lossCondition;
-
-  const panel = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 12 };
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Nunito', sans-serif", padding: "24px", maxWidth: 820, margin: "0 auto" }}>

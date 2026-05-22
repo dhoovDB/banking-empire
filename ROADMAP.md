@@ -98,6 +98,28 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
       `evaluateCharacter`. Bundled with the §5 engine-handler sweep on
       2026-05-19 since that pass was reading the same handlers. (2026-05-19)
 
+### 1e. Seat usage under load (recurrence — likely next daily task)
+
+- [ ] **Only one waiting seat fills during a rush** — observed 2026-05-21:
+      with 3 waiting seats and multiple customers standing during a rush
+      event, only one seat was occupied at a time. This is a *recurrence* of
+      the original §1e observation (see Completed, 2026-05-13). That earlier
+      pass added a multi-tick integration test proving the seat allocator
+      seats 3 customers correctly — but the test injects 3 customers
+      *directly into waiting state*, while a real rush spawns 8 through the
+      full `entering → queue slot → JOIN_WAIT` pipeline. The renderer was
+      ruled out this session: `renderer/canvas.js:885-893` draws each customer
+      at its own `gx/gy` and the chairs come from the same
+      `simState.seatPositions` the engine assigns from, so the visual faithfully
+      reflects engine state — "one seat used" means one customer reached
+      `seatedAt`. **Diagnostic-first plan:** write a rush-replica test (8
+      customers, 2 tellers, run the tick loop, count `seatedAt`). If it shows
+      3 seated → the bug is in the draw path after all (e.g. the +5px seated
+      offset too subtle to read). If it shows 1 → an engine pipeline bug, and
+      the test has localized it. Write the test before any fix, per the repo's
+      testing norm. v1-scoped: a rush that visibly wastes seats undercuts the
+      "staffing/facilities decisions matter" lesson.
+
 ### 1b. Queue behaviour (completed this session)
 
 - [x] **Waiting state** — customers hold at queue slot until a teller or loan desk slot is free. Direct-to-desk if slot open on entry. Removes the old progress-timer advance trigger. (2026-05-02)
@@ -157,15 +179,41 @@ and doesn't enforce consequences for bad decisions.*
       (gx=1, gy=2) removed since it was crowding the manager desk.
       88/88 tests still passing. (2026-05-17)
 
-- [ ] **Sweep for duplicated visual primitives — `ui/`.** Same pattern as
-      the canvas sweep above. Targets: KPI rows, status pills, modal
-      shells, button styles, anything that reads as "the same thing in
-      two places." During the canvas sweep we noticed `EVT_DISPLAY` in
-      `config/events.js` (title/description/color) and the renderer's
-      `EVENT_VISUALS` (label/color/border) are parallel maps with
-      *different* colors for the same events — the renderer pre-dated the
-      config map and never got pulled into it. Resolve as part of this
-      sweep or as a separate config-consolidation task.
+- [x] **Sweep for duplicated visual primitives — `ui/`.** The palette object
+      `C`, the `kpiColor(key, value)` function, the `panel` / `btnSm` style
+      objects, and `ERA_NAMES` were copy-pasted across all three screens —
+      `SetupScreen`, `SimScreen`, `ReportScreen`. Extracted into a new
+      `ui/theme.js` (one ui-internal module; imports nothing from
+      engine/renderer, so the layer rule holds). All three screens now import
+      the shared primitives. The KPI row *components* — `KPIBadge` (vertical),
+      `KPIRow` (horizontal), `KPICard` (threshold card) — stay separate
+      because they are genuinely different layouts; they just share the one
+      `kpiColor`. SimScreen's three sidebar cards were a within-file triple
+      and collapsed to one local `sidebarCard` const (compact padding for the
+      180px sidebar, distinct from the roomy shared `panel`). Palette unified
+      per decision 2026-05-21: SimScreen's slightly darker `panel`/`border`
+      and dimmer `dim` were drift, snapped to the Setup/Report values. Three
+      screens −79/+12 lines; theme.js +46; net ~−21 plus one source of truth.
+      88/88 tests still passing; production build clean (bundle 211.86 →
+      210.07 kB). The `EVT_DISPLAY` / `EVENT_VISUALS` / `EVT_LABELS` color
+      drift was deliberately NOT bundled here — see the separate task below.
+      (2026-05-21)
+
+- [ ] **Consolidate event display strings + colors to one source.** Three
+      parallel maps describe the same five events: `EVT_DISPLAY` in
+      `config/events.js` (title/description/color), `EVENT_VISUALS` in
+      `renderer/canvas.js` (label/color/border), and `EVT_LABELS` in
+      `ui/ReportScreen.jsx` (just titles). The colors *disagree* — e.g.
+      robbery is `#ff6b6b` in config but `#d96060` in the renderer, so the
+      React event banner and the canvas banner can show two different reds
+      for the same event. Spans config + renderer + ui, and carries a real
+      decision: which palette wins, and does the after-action report get the
+      neutral label ("Robbery") while the live banner keeps the dramatic one
+      ("Robbery!") per the in-game copy register? Per CLAUDE.md, `config/
+      events.js` already owns "UI display strings," so config should be the
+      single source of truth; the renderer and report should read from it.
+      Deferred from the 2026-05-21 ui/ sweep because it is a design call, not
+      a mechanical extraction.
 
 - [x] **Sweep for parallel branches in engine handlers.** Five cuts landed in
       `engine/simulation.js`: (1) `MOVE_TO_EXIT` command removed entirely —

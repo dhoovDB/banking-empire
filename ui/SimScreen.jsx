@@ -1,25 +1,6 @@
 import React from "react";
 import { CANVAS_W, CANVAS_H } from "../renderer/canvas.js";
-import { KPI_DEFINITIONS }    from "../config/economy.js";
-
-const C = {
-  bg:     "#0f0d0b",
-  panel:  "rgba(20,14,9,0.88)",
-  border: "rgba(245,166,35,0.16)",
-  text:   "#c8b99a",
-  gold:   "#f5a623",
-  dim:    "#6a5a4a",
-  danger: "#ff6b6b",
-  warn:   "#f5c842",
-  good:   "#4ecdc4",
-};
-
-function kpiColor(key, value) {
-  const d = KPI_DEFINITIONS[key];
-  if (!d) return C.text;
-  if (d.invert) return value > d.danger ? C.danger : value > d.warn ? C.warn : C.good;
-  return value < d.danger ? C.danger : value < d.warn ? C.warn : C.good;
-}
+import { C, kpiColor } from "./theme.js";
 
 function KPIRow({ label, kpiKey, value, display }) {
   const color = kpiColor(kpiKey, value);
@@ -35,6 +16,12 @@ export default function SimScreen({
   canvasRef, activeEvent, simLog, fin, staff, dayProgress,
   greets = 0, onCanvasMove, onCanvasLeave, onCanvasClick,
 }) {
+  // Compact card for the 180px sidebar — tighter padding than the shared
+  // `panel` token, which is sized for the full-width setup/report screens.
+  const sidebarCard = {
+    background: C.panel, border: `1px solid ${C.border}`,
+    borderRadius: 8, padding: "12px 14px", marginBottom: 10,
+  };
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", fontFamily: "'Nunito', sans-serif", padding: "12px 16px" }}>
 
@@ -98,7 +85,7 @@ export default function SimScreen({
         <div style={{ width: 180, flexShrink: 0 }}>
 
           {/* KPIs */}
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
+          <div style={sidebarCard}>
             <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 10, letterSpacing: 0.5 }}>KPIs</div>
             <KPIRow label="Cash"       kpiKey="cash"       value={fin.cash}       display={`$${Math.round(fin.cash/1000)}k`} />
             <KPIRow label="NIM"        kpiKey="nim"        value={fin.nim}        display={`${(fin.nim||0).toFixed(2)}%`} />
@@ -108,7 +95,7 @@ export default function SimScreen({
           </div>
 
           {/* Staff */}
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
+          <div style={sidebarCard}>
             <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>STAFF</div>
             {[["Tellers", staff.tellers], ["Loan Officers", staff.loanOfficers], ["Security", staff.security]].map(([label, count]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
@@ -119,7 +106,7 @@ export default function SimScreen({
           </div>
 
           {/* Event log */}
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ ...sidebarCard, marginBottom: 0 }}>
             <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>LOG</div>
             {simLog.length === 0
               ? <div style={{ fontSize: 11, color: C.dim }}>No events yet</div>
