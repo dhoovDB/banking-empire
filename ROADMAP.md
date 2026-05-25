@@ -1,8 +1,19 @@
-# Banking Empire — Product Roadmap
+# Banking Empire — Roadmap
 
 This file captures ideas, features, and design decisions for future development.
 It is a living document. When an idea gets built, move it to the Completed section
 with a date. When an idea gets cut, note why.
+
+---
+
+## What this builds toward
+
+Banking Empire teaches real banking concepts — NIM, CAR, NPL — through play. It
+builds toward a game a first-time player can finish in one sitting and come away
+able to explain those concepts to a non-banker, with the whimsy carrying the
+lesson rather than decorating it. v1 is the full 20-quarter playable arc (see
+Definition of done below); v2 and beyond deepen the financial model and extend
+the eras.
 
 ---
 
@@ -487,8 +498,10 @@ staffing and infrastructure assets are represented visually.
 
 ---
 
-## Design decisions log
-*Read this before changing anything that seems "obviously wrong" — it probably isn't.*
+## Decision log
+*Project and architectural decisions live here. Changes to this repo's CLAUDE.md
+are logged in CLAUDE.md, not here. Read this before changing anything that seems
+"obviously wrong" — it probably isn't.*
 
 ### Era 1 NIM is intentionally low
 Starting NIM (~1.125%) is below the warn threshold. This teaches the core
@@ -598,5 +611,5 @@ gap is the price of giving the manager desk room to breathe.
 
 ---
 
-*Last updated: roadmap restructured with short/medium/long term prioritization.*
-*v1 definition of done added. Daily task selector will use SHORT TERM section.*
+*Last updated: 2026-05-25. The daily-task selector reads the SHORT TERM section
+first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*

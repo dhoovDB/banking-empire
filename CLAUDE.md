@@ -195,3 +195,17 @@ npm run dev
 ```
 
 Requires Node 18+.
+
+---
+
+## Decision log
+
+*Project and architectural decisions are logged in `ROADMAP.md` (its Decision log
+and Key design decisions sections). This log tracks changes to this CLAUDE.md only.*
+
+### 2026-05-25 — Adopted the portfolio ROADMAP standard
+
+`ROADMAP.md` was restructured to the portfolio standard (see
+`writing-kit/ROADMAP-TEMPLATE.md`): retitled, gained a "What this builds toward"
+section, and renamed its "Design decisions log" to "Decision log." Added this
+CLAUDE.md decision log to track future changes to this guide.
