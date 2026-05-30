@@ -65,7 +65,7 @@ export default function SimScreen({
           color: activeEvent.color || C.gold,
           fontSize: 13, fontWeight: 700,
         }}>
-          ⚠ {activeEvent.title}
+          ⚠ {activeEvent.bannerLabel}
           {activeEvent.description && (
             <span style={{ fontWeight: 400, color: C.text, fontSize: 11, marginLeft: 8 }}>
               {activeEvent.description}

@@ -1,5 +1,6 @@
 import React from "react";
 import { KPI_DEFINITIONS } from "../config/economy.js";
+import { EVT_DISPLAY } from "../config/events.js";
 import { C, ERA_NAMES, panel, kpiColor } from "./theme.js";
 
 function PLRow({ label, value, sub, color }) {
@@ -28,14 +29,6 @@ function KPICard({ label, kpiKey, value, display }) {
     </div>
   );
 }
-
-const EVT_LABELS = {
-  robbery:    "Robbery",
-  inspection: "Regulatory Inspection",
-  rush:       "Bank Rush",
-  whale:      "VIP Client",
-  outage:     "System Outage",
-};
 
 export default function ReportScreen({ report, fin, onNextQuarter, onRestart }) {
   const isGameOver = !!report.lossCondition;
@@ -140,7 +133,7 @@ export default function ReportScreen({ report, fin, onNextQuarter, onRestart }) 
             ? <div style={{ fontSize: 13, color: C.dim }}>No events this quarter.</div>
             : report.events.map(type => (
                 <div key={type} style={{ fontSize: 13, color: C.text, marginBottom: 6, paddingLeft: 10, borderLeft: `2px solid ${C.border}` }}>
-                  {EVT_LABELS[type] || type}
+                  {EVT_DISPLAY[type]?.reportLabel || type}
                 </div>
               ))
           }

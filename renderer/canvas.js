@@ -1,4 +1,5 @@
 import { EMOTIONS } from "../config/characters.js";
+import { EVT_DISPLAY } from "../config/events.js";
 import { tickParticles } from "./particles.js";
 
 export const CANVAS_W = 1080;
@@ -733,23 +734,20 @@ function drawHUD(ctx, { served, deposited, walkouts, queueLength, greets=0 }) {
   });
 }
 
-// One source of truth for how a branch event reads on screen — banner label,
-// banner accent color, and (when applicable) the canvas-edge border treatment.
-// drawEventBanner and drawEventBorder both read from this map; adding a new
-// event means one entry here instead of touching two functions.
-const EVENT_VISUALS = {
-  robbery:    { label: "ROBBERY",     color: "#d96060", border: { color: "#c84a4a", width: 3, dash: null } },
-  inspection: { label: "INSPECTION",  color: "#e8b25a", border: { color: "#e8b25a", width: 2, dash: [8, 4] } },
-  rush:       { label: "BANK RUSH",   color: "#e89050", border: null },
-  whale:      { label: "VIP CLIENT",  color: "#c8a14a", border: null },
-  outage:     { label: "SYSTEM DOWN", color: "#9a8f7e", border: null },
-};
+// Event display lives in `config/events.js` (EVT_DISPLAY) — banner label,
+// accent color, and (when applicable) border treatment all come from there.
+// Adding a new event = one config entry, no changes here. See the
+// 2026-05-29 decision-log entry for the consolidation that retired the
+// local EVENT_VISUALS map and the silent renderer-vs-config color drift.
 const DEFAULT_EVENT_COLOR = "#9a8f7e";
 
 function drawEventBanner(ctx, activeEvent) {
   if (!activeEvent) return;
-  const visual = EVENT_VISUALS[activeEvent];
-  const text  = visual?.label ?? activeEvent.toUpperCase();
+  const visual = EVT_DISPLAY[activeEvent];
+  // Canvas register is all-caps for legibility at this font size — the
+  // bannerLabel field in config keeps the React-HUD-friendly mixed case;
+  // uppercase here is purely a render-time choice.
+  const text  = (visual?.bannerLabel ?? activeEvent).toUpperCase();
   const color = visual?.color ?? DEFAULT_EVENT_COLOR;
   ctx.font="bold 10px 'Nunito',sans-serif"; ctx.textAlign="center";
   const tw=ctx.measureText(text).width+34;
@@ -759,7 +757,7 @@ function drawEventBanner(ctx, activeEvent) {
 }
 
 function drawEventBorder(ctx, activeEvent) {
-  const border = EVENT_VISUALS[activeEvent]?.border;
+  const border = EVT_DISPLAY[activeEvent]?.border;
   if (!border) return;
   if (border.dash) ctx.setLineDash(border.dash);
   ctx.strokeStyle = border.color;

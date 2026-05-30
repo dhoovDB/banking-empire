@@ -38,33 +38,62 @@ export const BRANCH_EVENTS = {
 };
 
 // ─── EVENT DISPLAY ────────────────────────────────────────────────────────────
-// What the UI shows when an event fires. Kept separate from BRANCH_EVENTS so
-// the engine never touches display strings.
+// Single source of truth for how a branch event reads on screen — across the
+// React HUD banner (ui/SimScreen.jsx), the canvas overlay banner + border
+// (renderer/canvas.js), and the after-action report (ui/ReportScreen.jsx).
+// Kept separate from BRANCH_EVENTS so the engine never touches display strings.
+//
+// Adding a new event = one entry here + one BRANCH_EVENTS entry above. The
+// renderer, HUD, and report render it automatically. A consistency test in
+// engine/events.test.js asserts every BRANCH_EVENTS key has a matching entry.
+//
+// Fields:
+//   bannerLabel — live in-game banner copy (React HUD shows as-is; canvas
+//                 uppercases on render). Dramatic register per CLAUDE.md
+//                 "lean into the drama".
+//   reportLabel — neutral after-action label for the report screen.
+//   description — optional, shown beside the React HUD banner.
+//   color       — canonical accent color (React banner + canvas banner). One
+//                 color per event; the canvas applies it at translucent
+//                 alpha for the fill. Resolves the 2026-05-21 drift between
+//                 this map and the renderer's prior local copy.
+//   border      — canvas-edge border treatment while the event is active.
+//                 { color, width, dash: [...] | null }, or null for none.
 
 export const EVT_DISPLAY = {
   robbery: {
-    title:       "Robbery!",
+    bannerLabel: "Robbery!",
+    reportLabel: "Robbery",
     description: "An armed robber has entered the branch. Security can stop them.",
     color:       "#ff6b6b",
+    border:      { color: "#c84a4a", width: 3, dash: null },
   },
   inspection: {
-    title:       "Regulatory Inspection",
+    bannerLabel: "Regulatory Inspection",
+    reportLabel: "Regulatory Inspection",
     description: "Inspectors are reviewing your operations. Serve the inspector to avoid a fine.",
     color:       "#f5a623",
+    border:      { color: "#e8b25a", width: 2, dash: [8, 4] },
   },
   rush: {
-    title:       "Bank Rush",
+    bannerLabel: "Bank Rush",
+    reportLabel: "Bank Rush",
     description: "Unusually high customer volume this quarter. Manage the queue.",
     color:       "#ff8c42",
+    border:      null,
   },
   whale: {
-    title:       "VIP Client",
+    bannerLabel: "VIP Client",
+    reportLabel: "VIP Client",
     description: "A high-value depositor has arrived. Serve them promptly for a bonus.",
     color:       "#d4af37",
+    border:      null,
   },
   outage: {
-    title:       "System Outage",
+    bannerLabel: "System Outage",
+    reportLabel: "System Outage",
     description: "IT systems are down. Teller services suspended until resolved.",
     color:       "#9a8f7e",
+    border:      null,
   },
 };

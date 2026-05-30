@@ -430,7 +430,7 @@ export default function BankingEmpire() {
 
     const evtDef = EVT_DISPLAY[type];
     if (evtDef) setActiveEvt(evtDef);
-    setSimLog(log => [...log, `${evtDef?.title || type} — Q${fin.quarter}`]);
+    setSimLog(log => [...log, `${evtDef?.bannerLabel || type} — Q${fin.quarter}`]);
 
     setTimeout(() => {
       if (s.activeEvent === type) s.activeEvent = null;

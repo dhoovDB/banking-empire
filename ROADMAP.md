@@ -210,21 +210,19 @@ and doesn't enforce consequences for bad decisions.*
       drift was deliberately NOT bundled here — see the separate task below.
       (2026-05-21)
 
-- [ ] **Consolidate event display strings + colors to one source.** Three
-      parallel maps describe the same five events: `EVT_DISPLAY` in
-      `config/events.js` (title/description/color), `EVENT_VISUALS` in
-      `renderer/canvas.js` (label/color/border), and `EVT_LABELS` in
-      `ui/ReportScreen.jsx` (just titles). The colors *disagree* — e.g.
-      robbery is `#ff6b6b` in config but `#d96060` in the renderer, so the
-      React event banner and the canvas banner can show two different reds
-      for the same event. Spans config + renderer + ui, and carries a real
-      decision: which palette wins, and does the after-action report get the
-      neutral label ("Robbery") while the live banner keeps the dramatic one
-      ("Robbery!") per the in-game copy register? Per CLAUDE.md, `config/
-      events.js` already owns "UI display strings," so config should be the
-      single source of truth; the renderer and report should read from it.
-      Deferred from the 2026-05-21 ui/ sweep because it is a design call, not
-      a mechanical extraction.
+- [x] **Consolidate event display strings + colors to one source** — the three
+      parallel maps (`EVT_DISPLAY` in config, `EVENT_VISUALS` in
+      `renderer/canvas.js`, `EVT_LABELS` in `ui/ReportScreen.jsx`) collapsed
+      to one entry per event in `EVT_DISPLAY` with `bannerLabel` (live, dramatic),
+      `reportLabel` (after-action, neutral), `color`, `description`, and an
+      optional `border` spec. Config now wins the palette across the board —
+      robbery is canonical `#ff6b6b` everywhere, demoting the renderer's
+      `#d96060` and similar drift on inspection / rush / whale. The renderer
+      and report import from config; `EVENT_VISUALS` and `EVT_LABELS` deleted.
+      New `engine/events.test.js` (4 tests) locks the schema and asserts every
+      `BRANCH_EVENTS` key has a well-formed `EVT_DISPLAY` entry so this drift
+      can't recur silently. 92/92 tests passing. See decision log 2026-05-29.
+      (2026-05-29)
 
 - [x] **Sweep for parallel branches in engine handlers.** Five cuts landed in
       `engine/simulation.js`: (1) `MOVE_TO_EXIT` command removed entirely —
@@ -546,6 +544,40 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-05-29 — Event display config consolidated; config wins the palette
+
+Three parallel maps (`EVT_DISPLAY` in `config/events.js`, `EVENT_VISUALS` in
+`renderer/canvas.js`, `EVT_LABELS` in `ui/ReportScreen.jsx`) described the
+same five events. The colors disagreed — robbery rendered `#ff6b6b` in the
+React HUD banner but `#d96060` on the canvas overlay banner, for the same
+event in the same quarter. The renderer's muted colors were unannounced drift
+from a 2026-05-16-ish edit. Three decisions landed in this consolidation:
+
+- **One config, three label fields.** `EVT_DISPLAY[event]` now carries
+  `bannerLabel` (live, used by both the React HUD and the canvas overlay —
+  the canvas uppercases at render time for legibility), `reportLabel`
+  (neutral after-action label for `ReportScreen`), `description`, `color`,
+  and an optional `border`. The renderer's local `EVENT_VISUALS` and the
+  report's local `EVT_LABELS` were deleted; both surfaces now import from
+  config. Adding a new event = one entry in `config/events.js` + one in
+  `BRANCH_EVENTS`. Aligns with the CLAUDE.md rule that `config/events.js`
+  owns "UI display strings."
+- **Config palette wins.** Robbery is `#ff6b6b` (the brighter alarm red),
+  demoting the renderer's `#d96060` as drift, per the CLAUDE.md "lean into
+  the drama" copy register. The same logic applied to inspection (kept
+  `#f5a623`), rush (`#ff8c42`), and whale (`#d4af37`); outage already agreed
+  at `#9a8f7e`.
+- **Copy register: dramatic banner, neutral report.** The banner says
+  "Robbery!" with drama because the player is reacting *now*; the report
+  says "Robbery" because the player is reviewing what happened. Two label
+  fields encoded the rule as data instead of as scattered literals across
+  layers.
+
+New `engine/events.test.js` (4 tests) asserts every `BRANCH_EVENTS` key has
+a matching `EVT_DISPLAY` entry with well-formed fields; runs alongside the
+existing 88 tests (92/92 passing). The next instance of this drift will fail
+a test instead of shipping silently.
+
 ---
 
 ## Completed
@@ -611,5 +643,5 @@ gap is the price of giving the manager desk room to breathe.
 
 ---
 
-*Last updated: 2026-05-25. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-05-29. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
