@@ -174,7 +174,7 @@ copy — follows these rules:
 
 This is not the user's personal writing voice. It governs in-game UI 
 copy only. The user's writing system prompt lives in 
-`writing-kit/system_prompt.md` and is invoked separately.
+`writing-kit/VOICE.md` and is invoked separately.
 
 ---
 
