@@ -676,3 +676,149 @@ describe("multi-tick rush — all 3 default seats fill correctly", () => {
     expect(ticksUsed).toBeLessThan(300);
   });
 });
+
+// ─── MULTI-TICK RUSH — REAL 8-CUSTOMER REPLICA (ROADMAP §1e RECURRENCE) ───────
+// The test above injects 3 calm customers with 0 tellers. The 2026-05-21
+// recurrence ("only one waiting seat fills during a rush") reported the bug
+// under conditions that block never exercised: a *real* rush spawns 8 customers
+// through `spawnRushCustomer` — frustration 0.6, baseAnger 0.45, angry — while
+// the era-1 tellers are already busy, and `activeEvent === "rush"` doubles
+// frustration growth. This block replicates all four differences and counts how
+// many of the 3 seats actually fill.
+//
+// Diagnostic intent (write the test before any fix, per the repo norm):
+//   • 3 seats fill → the engine is correct under true rush load; "one seat at a
+//     time" is a render/timing artifact, and the fix belongs in the draw path.
+//   • <3 seats fill → an engine pipeline bug, localized to the full
+//     entering → queue slot → JOIN_WAIT → CLAIM_SEAT path this block drives.
+//
+// Walkout-free guarantee: a waiting customer claims a seat at priority 3 BEFORE
+// the priority-7 walkout check, and never accrues frustration while walking to
+// it. Lobby standers do accrue — but at policy (2.0 / 6.5) the per-tick delta is
+// 0.00008·2 + 0.45·0.002 ≈ 0.00106, so reaching the 0.88 threshold from 0.6
+// takes ~264 ticks, far beyond the ~60 ticks the 3 seats need to fill. So the
+// loop breaks on "3 seated" long before any walkout is possible.
+
+describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => {
+  // Layout constants mirror BankingEmpire.jsx so the test sees the live geometry.
+  const QUEUE_SLOTS = [
+    {gx:3.5,gy:4.0},
+    {gx:3.1,gy:4.2}, {gx:3.9,gy:4.2},
+    {gx:2.7,gy:4.4}, {gx:3.5,gy:4.4}, {gx:4.3,gy:4.4},
+    {gx:3.1,gy:4.6}, {gx:3.9,gy:4.6},
+    {gx:2.7,gy:4.8}, {gx:4.3,gy:4.8},
+  ];
+  const TELLER_SLOTS = [
+    {gx:2.4,gy:3.10}, {gx:2.95,gy:3.10}, {gx:3.5,gy:3.10},
+    {gx:4.05,gy:3.10}, {gx:4.6,gy:3.10}, {gx:5.15,gy:3.10},
+  ];
+  // Era-1 default — 3 seats (DEFAULT_FACILITIES.waitingSeats).
+  const SEAT_POSITIONS = [
+    {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
+  ];
+  // Real overflow tiles so the 5 unseated waiters have somewhere to stand
+  // instead of being forced into spurious frustration/walkouts.
+  const LOBBY_POSITIONS = [
+    {gx:3.5, gy:5.0},
+    {gx:3.1, gy:5.2}, {gx:3.9, gy:5.2},
+    {gx:2.7, gy:5.4}, {gx:4.3, gy:5.4},
+    {gx:1.8, gy:5.0}, {gx:5.2, gy:5.0},
+    {gx:1.8, gy:5.4}, {gx:5.2, gy:5.4},
+  ];
+  const EXIT_POS             = {gx:3.5, gy:5.8};
+  const LOAN_DESK_POS        = {gx:2.2, gy:2.4};
+  const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
+
+  // 2 tellers, both already busy serving (occupiedTellerSlots full) — the real
+  // mid-rush condition. findFreeSlot returns null, so every arrival must wait,
+  // then upgrade to a seat (3 available) or a lobby tile (5 overflow).
+  function rushState() {
+    return {
+      numTellers:          2,
+      activeEvent:         "rush",
+      loanOfficers:        0,
+      queueSlots:          QUEUE_SLOTS,
+      tellerSlots:         TELLER_SLOTS,
+      loanDeskPos:         LOAN_DESK_POS,
+      loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
+      exitPos:             EXIT_POS,
+      occupiedTellerSlots: new Set([0, 1]),
+      loanDeskOccupied:    false,
+      activeTellers:       new Set([0, 1]),
+      seatPositions:       SEAT_POSITIONS,
+      occupiedSeats:       new Set(),
+      lobbyPositions:      LOBBY_POSITIONS,
+      occupiedLobby:       new Set(),
+      served:              0,
+      deposited:           0,
+      loans:               0,
+      walkouts:            0,
+      whaleServed:         false,
+      securityCount:       0,
+      vaultLevel:          1,
+      robberyLoss:         0,
+      clickedCharIds:      new Set(),
+      chars:               [],
+    };
+  }
+
+  // One tick — mirrors BankingEmpire.jsx, applying each character's stateDeltas
+  // to simState before the next character evaluates (so B sees A's seat claim).
+  function tick(simState, policy) {
+    const next = [];
+    for (const char of simState.chars) {
+      const command = evaluateCharacter(char, simState, policy);
+      const { updatedChar, stateDeltas } = applyCommand(command, char, simState);
+      Object.entries(stateDeltas).forEach(([k, v]) => { simState[k] = v; });
+      if (updatedChar.state !== "exited") next.push(updatedChar);
+    }
+    simState.chars = next;
+  }
+
+  it("all 3 seats fill and no one walks out during an 8-customer rush", () => {
+    const simState = rushState();
+    // Spawn 8 the way spawnRushCustomer does: distinct queuePos, angry, primed
+    // with frustration. loanAmt=0 keeps everyone on the seat path (not the
+    // absent loan desk), exactly as the calm-rush test does.
+    simState.chars = Array.from({ length: 8 }, (_, i) => ({
+      ...createCustomer(i, i % QUEUE_SLOTS.length, "customer"),
+      frustration: 0.6,
+      baseAnger:   0.45,
+      emotion:     "angry",
+      loanAmt:     0,
+    }));
+
+    const policy = makePolicy();
+    const TICK_BUDGET = 400;
+    let ticksUsed = 0;
+    for (let i = 0; i < TICK_BUDGET; i++) {
+      tick(simState, policy);
+      ticksUsed = i + 1;
+      if (simState.chars.filter(c => c.seatedAt).length === 3) break;
+    }
+
+    // All 8 customers still present — none fled, none walked out before seating.
+    expect(simState.chars.length).toBe(8);
+    expect(simState.walkouts).toBe(0);
+
+    // All 3 seats claimed, by distinct customers who actually arrived.
+    expect(simState.occupiedSeats.size).toBe(3);
+    expect(simState.occupiedSeats.has(0)).toBe(true);
+    expect(simState.occupiedSeats.has(1)).toBe(true);
+    expect(simState.occupiedSeats.has(2)).toBe(true);
+
+    const seated = simState.chars.filter(c => c.seatedAt);
+    expect(seated.length).toBe(3);
+    expect(new Set(seated.map(c => c.seatId)).size).toBe(3);
+
+    // The 5 unseated waiters spread across unique lobby tiles, never stacking.
+    const lobbied = simState.chars.filter(c => c.lobbyId != null && !c.seatedAt);
+    expect(lobbied.length).toBe(5);
+    expect(new Set(lobbied.map(c => c.lobbyId)).size).toBe(5);
+
+    // Seats fill well before any lobby stander could approach the walkout
+    // threshold (~264 ticks) — generous bound guards against a regression that
+    // slows the seat path.
+    expect(ticksUsed).toBeLessThan(300);
+  });
+});

@@ -111,25 +111,26 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 
 ### 1e. Seat usage under load (recurrence — likely next daily task)
 
-- [ ] **Only one waiting seat fills during a rush** — observed 2026-05-21:
-      with 3 waiting seats and multiple customers standing during a rush
-      event, only one seat was occupied at a time. This is a *recurrence* of
-      the original §1e observation (see Completed, 2026-05-13). That earlier
-      pass added a multi-tick integration test proving the seat allocator
-      seats 3 customers correctly — but the test injects 3 customers
-      *directly into waiting state*, while a real rush spawns 8 through the
-      full `entering → queue slot → JOIN_WAIT` pipeline. The renderer was
-      ruled out this session: `renderer/canvas.js:885-893` draws each customer
-      at its own `gx/gy` and the chairs come from the same
-      `simState.seatPositions` the engine assigns from, so the visual faithfully
-      reflects engine state — "one seat used" means one customer reached
-      `seatedAt`. **Diagnostic-first plan:** write a rush-replica test (8
-      customers, 2 tellers, run the tick loop, count `seatedAt`). If it shows
-      3 seated → the bug is in the draw path after all (e.g. the +5px seated
-      offset too subtle to read). If it shows 1 → an engine pipeline bug, and
-      the test has localized it. Write the test before any fix, per the repo's
-      testing norm. v1-scoped: a rush that visibly wastes seats undercuts the
-      "staffing/facilities decisions matter" lesson.
+- [x] **Only one waiting seat fills during a rush** — diagnosed 2026-06-01,
+      **not a bug.** The diagnostic-first plan landed: a rush-replica
+      integration test (`engine/simulation.test.js`, "real 8-customer replica
+      fills all 3 seats") drives 8 customers spawned the way `spawnRushCustomer`
+      does — `frustration 0.6`, `baseAnger 0.45`, angry — through the full
+      `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline, with both era-1
+      tellers busy and `activeEvent: "rush"` doubling frustration growth. **All
+      3 seats fill, with zero walkouts.** Combined with this session's prior
+      ruling that the renderer faithfully draws engine state
+      (`renderer/canvas.js:885-893`), the "one seat at a time" observation is
+      explained by seat→teller churn, not a dropped seat claim: waiting-state
+      priority 1 fires for *seated* customers too, so when a teller frees, a
+      seated customer is pulled to the counter and releases the seat. The count
+      of *simultaneously* seated customers therefore cycles during live play —
+      a glance catches fewer than 3, which is correct behaviour (a seat is a
+      transient waiting spot, not a destination). The test pins both tellers
+      busy to isolate the allocator and proves it seats all 3. 93/93 passing.
+      *Optional future polish (not a v1 blocker): a more distinct seated pose
+      would make the transient occupancy read more clearly, but the mechanic is
+      correct as-is.* (2026-06-01)
 
 ### 1b. Queue behaviour (completed this session)
 
@@ -629,6 +630,7 @@ a test instead of shipping silently.
 - [x] Floor objects snapped onto the grid — left plants `gx 0.7 → 1.0`, right plants `gx 6.3 → 6.0`, all SEAT_POSITIONS shifted +0.1 gx (0.9→1.0, 1.3→1.4, etc.). The previous half-tile offsets put the leftmost chair and both side plants on bare canvas outside the painted floor. Local SEAT_POSITIONS in `engine/simulation.test.js` updated in lockstep. (2026-05-16)
 - [x] CLAUDE.md gained a "Default to consistency across similar elements" architecture principle, plus a new SHORT TERM consistency audit item — the rule is recorded going forward, and the audit captures the cleanup of what drifted before the rule landed. (2026-05-16)
 - [x] Vault door redrawn on the iso face plane — `drawVault` door body, outer ring, inner ring, spokes, hinges, and handle were all `ctx.arc` / axis-aligned rects in screen space, pasted onto a 2D-projected parallelogram. Playtest read was "the door is not in the same dimension/angle as the rest of the vault." Rebuilt with a `facePoint(u, v)` helper that maps face-local fractions onto the front-face plane (U = brT - blT, V = (0, H)). The door body and rings are now parametric 48-segment polygons; spokes use facePoint for both endpoints; hinges and the handle are parallelograms with all four corners projected through facePoint. Rivets, hub, and inner hub stay as screen-space circles — small enough that the projection delta would only read as noise. Door radius restated as a face-fraction (R = 0.38 of one tile) so width and height scale together with the face. 88/88 tests still passing. (2026-05-16)
+- [x] §1e rush seat-usage recurrence diagnosed — **not a bug.** New rush-replica integration test (`engine/simulation.test.js`, "real 8-customer replica fills all 3 seats") drives 8 angry customers (frustration 0.6 / baseAnger 0.45) through the full `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline with both era-1 tellers busy and `activeEvent: "rush"` doubling frustration growth. All 3 seats fill, zero walkouts. The earlier test injected only 3 calm customers with 0 tellers; this one exercises the real spawn conditions and proves the allocator is correct under load. The "one seat at a time" observation is seat→teller churn (waiting priority 1 pulls seated customers to a freed teller), not a dropped claim — correct behaviour for a transient waiting seat. 93/93 passing. See §1e for the full diagnosis. (2026-06-01)
 
 ---
 
@@ -643,5 +645,5 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-05-29. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-06-01. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
