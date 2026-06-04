@@ -360,7 +360,19 @@ and doesn't enforce consequences for bad decisions.*
       like on the loan customer's first `advancing` tick to isolate which
       stage is dropping the loan-desk routing.
 
-- [ ] **Loan officer count beyond 1 has no effect** — `STAFF_DEFINITIONS.loanOfficers.max` is 3, but every check in `engine/simulation.js` (lines 138, 145, 297) is binary (`loanOfficers > 0`), and there's a single `loanDeskPos` / `loanDeskOccupied`. Hiring 2 or 3 burns $8k + $4k/qtr each for zero throughput gain. The renderer also only draws `loanOfficerRoster[0]`, so the player who hires a second officer sees no new chibi — a 2026-05-13 playtest confirmed this visually (player described it as "the 2nd loan officer is a ghost again"). Two ways to fix: (a) scale loan desks with officer count (second desk at 2, third at 3), or (b) cap `max: 1` and accept the simpler model. (a) is more interesting gameplay, (b) is honest about what the game models today. Discovered while writing setup-screen tooltips on 2026-05-03.
+- [ ] **Multi-desk loan throughput (officer count scales capacity)** — v1 took
+      option (b): `STAFF_DEFINITIONS.loanOfficers.max` is now `1`, so the player
+      can't pay for officers the single-desk engine model can't use (see
+      Completed 2026-06-03 and the decision-log entry). This entry is the
+      remaining **v2** path — option (a): scale loan desks with officer count
+      (second desk at 2, third at 3) so additional officers add real throughput,
+      and draw each hired officer's chibi (today the renderer only draws
+      `loanOfficerRoster[0]`). Touches `engine/simulation.js` (per-desk
+      `loanDeskPos`/`loanDeskOccupied` → arrays indexed by officer), the renderer
+      (one chibi per officer), and `config/characters.js` (raise `max` back up).
+      Raise the cap only as part of this work — the `// reason:` comment on the
+      config field and `engine/characters.test.js` both guard against lifting it
+      on its own. Natural fit for era 2+ when staffing scales.
 
 - [ ] **Proactive NIM tutorial** — era 1 quarter 1 should explain NIM before
       the player's first rate decision. Currently players discover it reactively.
@@ -545,6 +557,34 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-06-03 — Loan officers capped at 1; honest v1 over half-built v2
+
+`STAFF_DEFINITIONS.loanOfficers.max` was 3, but the engine models a single loan
+desk: every check in `engine/simulation.js` is binary (`loanOfficers > 0`)
+against one `loanDeskPos`/`loanDeskOccupied`, and the renderer only draws
+`loanOfficerRoster[0]`. So hiring a 2nd or 3rd officer charged the player
+$8k + $4k/qtr for zero throughput and no second chibi — a silent lie to the
+player, confirmed visually in a 2026-05-13 playtest ("the 2nd loan officer is a
+ghost again").
+
+Two fixes were on the table: (a) scale loan desks with officer count so extra
+officers add real capacity, or (b) cap `max: 1` and be honest about what the
+game models today. **v1 took (b).** The governing constraint is "resist the pull
+to keep adding until v1 ships" — option (a) is a *feature* (multi-layer: engine
+desk arrays + renderer per-officer chibis), and v1 isn't done. Capping the role
+removes a half-built capability rather than adding one, which is the better v1
+call and the more honest player contract: you pay for one officer, you get one
+officer's worth of service.
+
+Option (a) is not lost — it's preserved as the MEDIUM TERM "Multi-desk loan
+throughput" entry, scoped for era 2+ when staffing genuinely scales. Two guards
+keep the cap honest until then: a `// reason:` comment on the config field
+explaining the single-desk model, and `engine/characters.test.js` asserting
+`max === 1` (and that every default staffing level sits within its role's cap).
+Lifting the cap on its own now fails a test. The roster pre-build in
+`BankingEmpire.jsx` dropped from `length: 3` to `length: 1` to match. 96/96
+passing.
+
 ### 2026-05-29 — Event display config consolidated; config wins the palette
 
 Three parallel maps (`EVT_DISPLAY` in `config/events.js`, `EVENT_VISUALS` in
@@ -630,6 +670,17 @@ a test instead of shipping silently.
 - [x] Floor objects snapped onto the grid — left plants `gx 0.7 → 1.0`, right plants `gx 6.3 → 6.0`, all SEAT_POSITIONS shifted +0.1 gx (0.9→1.0, 1.3→1.4, etc.). The previous half-tile offsets put the leftmost chair and both side plants on bare canvas outside the painted floor. Local SEAT_POSITIONS in `engine/simulation.test.js` updated in lockstep. (2026-05-16)
 - [x] CLAUDE.md gained a "Default to consistency across similar elements" architecture principle, plus a new SHORT TERM consistency audit item — the rule is recorded going forward, and the audit captures the cleanup of what drifted before the rule landed. (2026-05-16)
 - [x] Vault door redrawn on the iso face plane — `drawVault` door body, outer ring, inner ring, spokes, hinges, and handle were all `ctx.arc` / axis-aligned rects in screen space, pasted onto a 2D-projected parallelogram. Playtest read was "the door is not in the same dimension/angle as the rest of the vault." Rebuilt with a `facePoint(u, v)` helper that maps face-local fractions onto the front-face plane (U = brT - blT, V = (0, H)). The door body and rings are now parametric 48-segment polygons; spokes use facePoint for both endpoints; hinges and the handle are parallelograms with all four corners projected through facePoint. Rivets, hub, and inner hub stay as screen-space circles — small enough that the projection delta would only read as noise. Door radius restated as a face-fraction (R = 0.38 of one tile) so width and height scale together with the face. 88/88 tests still passing. (2026-05-16)
+- [x] Loan officers capped at 1 — `STAFF_DEFINITIONS.loanOfficers.max` 3 → 1, so
+      the setup screen can no longer sell a 2nd or 3rd officer ($8k + $4k/qtr
+      each) that the single-desk engine model can't use. The renderer only ever
+      drew `loanOfficerRoster[0]`; the roster pre-build is now `length: 1` to
+      match. A `// reason:` comment on the config field and a new
+      `engine/characters.test.js` (3 tests, incl. asserting `max === 1` and that
+      every default staffing level sits within its cap) keep the cap from being
+      lifted without the matching multi-desk engine work. Chose honesty (option
+      b) over building multi-desk throughput (option a) because v1 ships before
+      v2 features; option (a) is preserved as the MEDIUM TERM "Multi-desk loan
+      throughput" entry. 96/96 passing. See decision log 2026-06-03. (2026-06-03)
 - [x] §1e rush seat-usage recurrence diagnosed — **not a bug.** New rush-replica integration test (`engine/simulation.test.js`, "real 8-customer replica fills all 3 seats") drives 8 angry customers (frustration 0.6 / baseAnger 0.45) through the full `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline with both era-1 tellers busy and `activeEvent: "rush"` doubling frustration growth. All 3 seats fill, zero walkouts. The earlier test injected only 3 calm customers with 0 tellers; this one exercises the real spawn conditions and proves the allocator is correct under load. The "one seat at a time" observation is seat→teller churn (waiting priority 1 pulls seated customers to a freed teller), not a dropped claim — correct behaviour for a transient waiting seat. 93/93 passing. See §1e for the full diagnosis. (2026-06-01)
 
 ---
@@ -645,5 +696,5 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-06-01. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-06-03. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*

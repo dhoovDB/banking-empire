@@ -15,8 +15,14 @@ export const DEFAULT_FACILITIES = {
 export const STAFF_DEFINITIONS = {
   tellers:      { label: "Teller",        hireCost:  5000, salary: 2500, max: 6,
                   tooltip: "Accepts deposits at the counter. More tellers → shorter queues, fewer walk-outs." },
-  loanOfficers: { label: "Loan Officer",  hireCost:  8000, salary: 4000, max: 3,
-                  tooltip: "Approves loans for borrowers. If zero on staff, no loans can originate." },
+  // reason: max is 1 because the engine models a single loan desk — every check
+  // is binary (loanOfficers > 0) against one loanDeskPos/loanDeskOccupied, so a
+  // 2nd or 3rd officer would cost $8k + $4k/qtr for zero throughput. v1 is honest
+  // about serving one officer; multi-desk throughput scaling is a v2 item (see
+  // ROADMAP "Multi-desk loan throughput"). Restore a higher max only alongside
+  // that engine work, never on its own.
+  loanOfficers: { label: "Loan Officer",  hireCost:  8000, salary: 4000, max: 1,
+                  tooltip: "Approves loans for borrowers. One officer staffs the loan desk; with none, no loans originate." },
   security:     { label: "Security",      hireCost:  6000, salary: 3000, max: 2,
                   tooltip: "Deters robbers and cuts theft losses. Robberies don't fire until era 2." },
 };

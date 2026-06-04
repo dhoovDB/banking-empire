@@ -133,7 +133,7 @@ export default function BankingEmpire() {
     Array.from({ length: 6 }, () => createStaffMember("teller", []))
   );
   const [loanOfficerRoster] = useState(() =>
-    Array.from({ length: 3 }, () => createStaffMember("teller", []))
+    Array.from({ length: 1 }, () => createStaffMember("teller", []))
   );
 
   const canvasRef  = useRef(null);
