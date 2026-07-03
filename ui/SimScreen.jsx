@@ -1,6 +1,6 @@
 import React from "react";
 import { CANVAS_W, CANVAS_H } from "../renderer/canvas.js";
-import { C, kpiColor } from "./theme.js";
+import { C, ERA_NAMES, kpiColor } from "./theme.js";
 
 function KPIRow({ label, kpiKey, value, display }) {
   const color = kpiColor(kpiKey, value);
@@ -27,7 +27,10 @@ export default function SimScreen({
 
       {/* Top bar */}
       <div style={{ width: CANVAS_W, display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: C.dim }}>
+        <span style={{ fontSize: 12, color: C.gold, fontWeight: 700, whiteSpace: "nowrap" }}>
+          Era {fin.era}: {ERA_NAMES[fin.era]}
+        </span>
+        <span style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap" }}>
           Q{fin.quarter} · Year {fin.year}
         </span>
         <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3 }}>

@@ -48,28 +48,30 @@ export const FORCED_INSPECTION_TRIGGER_MS = 15000;
 // Evaluated after each quarter. Points accumulate in fin.eraProgress (0–100).
 // gains: positive conditions; losses: negative conditions (points are negative).
 //
-// Pacing target: a played-well era 1 (positive NIM management, staffed counter,
-// no walkouts) earns ~12–14 points a quarter, reaching era 2 around quarter
-// 8–10. A hands-off game gets there a few quarters later.
+// Pacing target (retuned 2026-07-03 from playtest feedback — "the fun stuff
+// starts in era 2"): a played-well era 1 quarter (NIM fixed above 1.5, staffed
+// counter, no walkouts) earns ~36 points, promoting to era 2 at the end of
+// quarter 3. Q1 usually misses the NIM gain (starting NIM is intentionally
+// low), so hands-off play lands a couple of quarters later.
 
 export const ERA_PROGRESS_RULES = {
   gains: [
-    { condition: "nim",        threshold: 1.5,  points:  3 },
-    { condition: "nim",        threshold: 2.5,  points:  5 },
-    { condition: "served",     threshold: 8,    points:  3 },
-    { condition: "served",     threshold: 15,   points:  4 },
-    { condition: "car",        threshold: 12,   points:  3 },
-    { condition: "reputation", threshold: 75,   points:  2 },
-    { condition: "whaleServed",                 points:  8 },
-    { condition: "noWalkouts",                  points:  4 },
+    { condition: "nim",        threshold: 1.5,  points:  8 },
+    { condition: "nim",        threshold: 2.5,  points:  6 },
+    { condition: "served",     threshold: 8,    points: 10 },
+    { condition: "served",     threshold: 15,   points:  6 },
+    { condition: "car",        threshold: 12,   points:  8 },
+    { condition: "reputation", threshold: 75,   points:  4 },
+    { condition: "whaleServed",                 points: 10 },
+    { condition: "noWalkouts",                  points: 10 },
   ],
   losses: [
-    { condition: "robbed",                      points: -6 },
-    { condition: "insFine",                     points: -4 },
-    { condition: "walkouts",   threshold: 3,    points: -2 },
-    { condition: "car",        threshold: 9,    points: -4 },
-    { condition: "nplRatio",   threshold: 0.07, points: -3 },
-    { condition: "reputation", threshold: 50,   points: -3 },
+    { condition: "robbed",                      points: -10 },
+    { condition: "insFine",                     points:  -8 },
+    { condition: "walkouts",   threshold: 3,    points:  -4 },
+    { condition: "car",        threshold: 9,    points:  -8 },
+    { condition: "nplRatio",   threshold: 0.07, points:  -6 },
+    { condition: "reputation", threshold: 50,   points:  -6 },
   ],
 };
 

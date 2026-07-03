@@ -1,7 +1,24 @@
 import React, { useMemo } from "react";
 import { STAFF_DEFINITIONS } from "../config/characters.js";
+import { KPI_DEFINITIONS } from "../config/economy.js";
 import { calculateNIM, calculateCAR, calculateOneTimeCosts, calculateRecurringSalaries } from "../engine/financials.js";
 import { C, ERA_NAMES, panel, btnSm, kpiColor } from "./theme.js";
+
+// Threshold copy for the KPI reference table. Values live in KPI_DEFINITIONS;
+// formatting is per-KPI because the units differ (dollars, %, points).
+const KPI_THRESHOLD_FMT = {
+  cash:       v => `$${Math.round(v / 1000)}k`,
+  nim:        v => `${v}%`,
+  car:        v => `${v}%`,
+  npl:        v => `${v * 100}%`,
+  reputation: v => `${v}`,
+};
+
+function kpiThresholdLabel(key, def) {
+  const fmt = KPI_THRESHOLD_FMT[key] || (v => `${v}`);
+  const cmp = def.invert ? ">" : "<";
+  return `warn ${cmp} ${fmt(def.warn)} · danger ${cmp} ${fmt(def.danger)}`;
+}
 
 function KPIBadge({ label, value, display, kpiKey }) {
   const color = kpiColor(kpiKey, value);
@@ -229,6 +246,39 @@ export default function SetupScreen({ fin, staff, fac, policy, committed, onStaf
           }}>
           Start Q{fin.quarter} ▶
         </button>
+      </div>
+
+      {/* KPI reference — what the numbers at the top actually mean */}
+      <div style={{ ...panel, marginTop: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, marginBottom: 12 }}>
+          What these numbers mean
+        </div>
+        {Object.entries(KPI_DEFINITIONS).map(([key, def], i) => (
+          <div key={key} style={{
+            display: "grid", gridTemplateColumns: "170px 1fr 170px", gap: 12,
+            padding: "10px 0", alignItems: "baseline",
+            borderTop: i > 0 ? `1px solid rgba(255,255,255,0.06)` : "none",
+          }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{def.label}</div>
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{def.formula}</div>
+            </div>
+            <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.5 }}>
+              {def.explain}
+              {def.educationalLink && (
+                <>{" "}
+                  <a href={def.educationalLink} target="_blank" rel="noreferrer"
+                     style={{ color: C.gold, textDecoration: "none" }}>
+                    Learn more ↗
+                  </a>
+                </>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: C.dim, textAlign: "right" }}>
+              {kpiThresholdLabel(key, def)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

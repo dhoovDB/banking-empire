@@ -358,6 +358,22 @@ and doesn't enforce consequences for bad decisions.*
 
 - [ ] **Robber click requires security hired** — currently clicking a robber works even with security = 0 (no security staff to dispatch). Guard the interaction: if `securityCount === 0`, show a "No security on duty" bubble instead.
 
+- [ ] **Split "rush" into two distinct events** (playtest feedback 2026-07-03:
+      "a bank rush is more than just a rush of customers"). Today's `rush` is
+      one event doing double duty. Split into:
+      - **Foot-traffic surge** — the current mechanic renamed: a random
+        influx of ordinary customers, era 1+, tests staffing and seats.
+      - **Bank run** — macro/confidence-driven: depositors arrive to *pull
+        money out*, triggered by conditions (low reputation, a macro rate
+        shock, a publicized robbery) rather than pure probability. Withdrawals
+        shrink the deposit book toward the liquidity loss condition — this is
+        the event that teaches why the 2% cash floor exists.
+      The bank run depends on two LONG TERM foundations: condition-triggered
+      events (second evaluation pass) and macro events (Fed rate decisions).
+      Sequence it with those; the surge rename is safe to do any time. This
+      also gives the shelved concentration-risk mechanic its natural home —
+      a whale walkout as a bank-run trigger.
+
 - [ ] **Loan customer routes to a teller position instead of the loan
       desk** — observed 2026-05-19 during the §5 engine-handler sweep
       smoke test. Setup: 1 loan officer hired, era 1, customer with
@@ -410,8 +426,10 @@ and doesn't enforce consequences for bad decisions.*
 
 ### Financial model depth
 
-- [ ] **Educational links rendered** — links defined in economy.js but not
-      shown in the KPI panel UI. One line change in KPIPanel.jsx.
+- [x] **Educational links rendered** — closed by the SetupScreen "What these
+      numbers mean" KPI reference table (2026-07-03): label, formula, plain-
+      language explanation, warn/danger thresholds, and the educationalLink
+      for every KPI_DEFINITIONS entry. (2026-07-03)
 
 ### Testing
 
@@ -769,6 +787,12 @@ a test instead of shipping silently.
       b) over building multi-desk throughput (option a) because v1 ships before
       v2 features; option (a) is preserved as the MEDIUM TERM "Multi-desk loan
       throughput" entry. 96/96 passing. See decision log 2026-06-03. (2026-06-03)
+- [x] First era-2 playtest feedback round — KPI reference table on the setup
+      screen ("What these numbers mean": formula, explanation, thresholds,
+      educational links from KPI_DEFINITIONS); era + name shown in the
+      SimScreen top bar; era pacing retuned so decent play promotes at the
+      end of Q3 (~36 pts/quarter, losses doubled to match). Rush/bank-run
+      event split captured as a MEDIUM TERM design item. (2026-07-03)
 - [x] Setup-cost refund bug fixed — quarter-start snapshot in simState, QPL
       add-back deleted, hires now actually paid from carried-forward cash.
       Found via adversarial review; see decision log. 104/104 tests. (2026-07-03)
