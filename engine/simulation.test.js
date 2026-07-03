@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateCharacter, applyCommand, createCustomer,
   createDaySimState, tickSimulation, interactionCommandFor,
+  loanApplicationChanceFor, resolveEraTransition,
 } from "./simulation.js";
 import { BRANCH_EVENTS } from "../config/events.js";
-import { SIM_TIMING }    from "../config/economy.js";
+import { SIM_TIMING, CUSTOMER_BEHAVIOUR } from "../config/economy.js";
+import { ERA_RULES } from "../config/progression.js";
 
 // One-allocator occupancy builder: occ({ teller: [0, 1], seat: [2] })
 function occ({ teller = [], loanDesk = [], seat = [] } = {}) {
@@ -880,5 +882,59 @@ describe("tickSimulation", () => {
 
     tickSimulation(s, makePolicy(), robber.interactUntil + 200);
     expect(s.chars.find(c => c.role === "robber").interactable).toBe(false);
+  });
+});
+
+// ─── LOAN DEMAND ELASTICITY ──────────────────────────────────────────────────
+// The lending-rate slider must actually move loan demand. Before 2026-07 the
+// loanDemand config block existed but was never read, and the application
+// roll was inverted (60% at a configured 40%).
+
+describe("loanApplicationChanceFor", () => {
+  const base = CUSTOMER_BEHAVIOUR.loanApplicationChance;
+
+  it("returns the configured base chance without a policy", () => {
+    expect(loanApplicationChanceFor(null)).toBe(base);
+  });
+
+  it("returns the base chance at the baseline rate", () => {
+    expect(loanApplicationChanceFor({ lendingRate: 5.0 })).toBeCloseTo(base, 5);
+  });
+
+  it("higher lending rates reduce demand; lower rates raise it", () => {
+    const atBaseline = loanApplicationChanceFor({ lendingRate: 5.0 });
+    const predatory  = loanApplicationChanceFor({ lendingRate: 9.0 });
+    const teaser     = loanApplicationChanceFor({ lendingRate: 3.5 });
+    expect(predatory).toBeLessThan(atBaseline);
+    expect(teaser).toBeGreaterThan(atBaseline);
+  });
+
+  it("stays clamped to a sane probability range", () => {
+    expect(loanApplicationChanceFor({ lendingRate: 0.5 })).toBeLessThanOrEqual(0.95);
+    expect(loanApplicationChanceFor({ lendingRate: 50 })).toBeGreaterThanOrEqual(0.02);
+  });
+});
+
+// ─── ERA TRANSITION ──────────────────────────────────────────────────────────
+// eraProgress used to accumulate forever without ever advancing the era,
+// which kept robbery/whale/outage, security, vault upgrades, and seat
+// purchases permanently unreachable. resolveEraTransition closes the loop.
+
+describe("resolveEraTransition", () => {
+  it("advances the era and resets progress when the bar fills", () => {
+    const t = resolveEraTransition(1, 104);
+    expect(t).toEqual({ era: 2, eraProgress: 0, eraAdvanced: true });
+  });
+
+  it("stays in era below the threshold, clamped to 0–100", () => {
+    expect(resolveEraTransition(1, 55)).toEqual({ era: 1, eraProgress: 55, eraAdvanced: false });
+    expect(resolveEraTransition(1, -12)).toEqual({ era: 1, eraProgress: 0, eraAdvanced: false });
+  });
+
+  it("respects the v1 era cap — a full bar at the cap does not advance", () => {
+    const t = resolveEraTransition(ERA_RULES.cap, 150);
+    expect(t.era).toBe(ERA_RULES.cap);
+    expect(t.eraAdvanced).toBe(false);
+    expect(t.eraProgress).toBe(100);
   });
 });

@@ -132,14 +132,6 @@ export function isLiquidityBreached(cash, deposits) {
   return cash < deposits * 0.02;
 }
 
-export function getConcentrationRisk(whaleDeposit, totalDeposits, config) {
-  if (totalDeposits === 0) return "none";
-  const ratio = whaleDeposit / totalDeposits;
-  if (ratio >= config.catastrophicThreshold) return "critical";
-  if (ratio >= config.whaleThreshold)        return "warning";
-  return "none";
-}
-
 export function checkLossConditions(fin, history, lossConditions) {
   for (const condition of lossConditions) {
     const t = condition.trigger;

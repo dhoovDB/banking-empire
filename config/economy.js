@@ -118,8 +118,11 @@ export const POLICY_IMPACTS = {
       { label: "Very Low",             retention: "98%" },
     ],
   },
+  // Loan demand elasticity: application chance scales with
+  // (lendingRate / rateBaseline)^-rateElasticity. At the baseline rate,
+  // demand equals CUSTOMER_BEHAVIOUR.loanApplicationChance; predatory
+  // rates choke off applications, teaser rates attract them.
   loanDemand: {
-    baseAppsPerDay: 8,
     rateElasticity: 1.4,
     rateBaseline:   5.0,
   },
@@ -192,12 +195,3 @@ export const PL_RULES = {
   },
 };
 
-// ─── CONCENTRATION RISK ───────────────────────────────────────────────────────
-export const CONCENTRATION_RISK = {
-  whaleThreshold:        0.20,
-  catastrophicThreshold: 0.35,
-  walkoutImpact: {
-    belowThreshold: { depositFlight: 0.07, reputationHit: 5 },
-    aboveThreshold: { depositFlight: 0.22, reputationHit: 18, triggersEvent: "bankRush" },
-  },
-};

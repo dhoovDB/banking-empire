@@ -9,7 +9,7 @@ import {
 } from "./engine/financials.js";
 import {
   createDaySimState, tickSimulation, interactionCommandFor, applyCommand,
-  calculateEraProgressDelta, createStaffMember,
+  calculateEraProgressDelta, resolveEraTransition, createStaffMember,
 } from "./engine/simulation.js";
 import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";
 
@@ -23,7 +23,7 @@ function pickCharacter(chars, cssX, cssY, clickedCharIds = new Set()) {
       if (clickedCharIds.has(c.id)) return false;
       if (c.role === "inspector") return c.state === "inspecting";
       if (c.role === "whale" || c.role === "robber") return !!c.interactable;
-      if (c.role === "customer") return c.state === "waiting" || c.state === "queued";
+      if (c.role === "customer") return c.state === "waiting";
       return false;
     })
     .sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy));
@@ -107,13 +107,6 @@ export default function BankingEmpire() {
       activeEvent:   s.activeEvent,
       vaultOpen:     s.vaultOpen,
       activeTellers: s.activeTellers,
-      hudState: {
-        served:      s.served,
-        deposited:   s.deposited,
-        walkouts:    s.walkouts,
-        queueLength: s.chars.filter(c => c.state === "waiting").length,
-        greets:      s.greets || 0,
-      },
       queueSlots:    s.queueSlots,
       tellerSlots:   s.tellerSlots,
       loanDeskPos:   s.loanDeskPos,
@@ -271,7 +264,9 @@ export default function BankingEmpire() {
     const updatedFin = { ...pl.updatedFin, nim, car };
 
     const progressDelta = calculateEraProgressDelta(dayResult, updatedFin);
-    updatedFin.eraProgress = Math.min(100, Math.max(0, fin.eraProgress + progressDelta));
+    const eraTransition = resolveEraTransition(fin.era, fin.eraProgress + progressDelta);
+    updatedFin.era         = eraTransition.era;
+    updatedFin.eraProgress = eraTransition.eraProgress;
 
     const newHistory    = [...history, { ...updatedFin }].slice(-8);
     const lossCondition = checkLossConditions(updatedFin, newHistory, LOSS_CONDITIONS);
@@ -286,6 +281,7 @@ export default function BankingEmpire() {
       car:           car.toFixed(1),
       events:        s.events.filter(e => e.done).map(e => e.type),
       lossCondition: lossCondition || null,
+      eraAdvanced:   eraTransition.eraAdvanced,
     });
     setPhase("report");
     setActiveEvt(null);
@@ -310,9 +306,18 @@ export default function BankingEmpire() {
       onPolicyChange={handlePolicyChange} onStartSim={startSim} />
   );
 
+  // Day counters are read straight off the sim ref at render time — the
+  // dayProgress state update already re-renders this screen every tick.
+  const s = simState.current;
   if (phase === "simulating") return (
     <SimScreen canvasRef={canvasRef} activeEvent={activeEvt} simLog={simLog}
       fin={fin} staff={staff} dayProgress={dayProg} greets={greets}
+      day={{
+        served:    s?.served    ?? 0,
+        deposited: s?.deposited ?? 0,
+        walkouts:  s?.walkouts  ?? 0,
+        queue:     s?.chars.filter(c => c.state === "waiting").length ?? 0,
+      }}
       onCanvasMove={handleCanvasMove}
       onCanvasLeave={handleCanvasLeave}
       onCanvasClick={handleCanvasClick} />

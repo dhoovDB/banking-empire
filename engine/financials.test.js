@@ -8,7 +8,6 @@ import {
   calculateOneTimeCosts,
   calculateQuarterlyPL,
   isLiquidityBreached,
-  getConcentrationRisk,
   getKPIStatus,
   checkLossConditions,
 } from "./financials.js";
@@ -92,34 +91,6 @@ describe("isLiquidityBreached", () => {
   it("returns false when cash is exactly at the floor (strict less-than)", () => {
     // floor = 80000 * 0.02 = 1600; 1600 < 1600 is false
     expect(isLiquidityBreached(1600, 80000)).toBe(false);
-  });
-});
-
-describe("getConcentrationRisk", () => {
-  const config = { whaleThreshold: 0.20, catastrophicThreshold: 0.35 };
-
-  it("returns none when totalDeposits is zero", () => {
-    expect(getConcentrationRisk(0, 0, config)).toBe("none");
-  });
-
-  it("returns none below whale threshold", () => {
-    // 100000 / 1000000 = 10%
-    expect(getConcentrationRisk(100000, 1000000, config)).toBe("none");
-  });
-
-  it("returns warning between whale and catastrophic thresholds", () => {
-    // 250000 / 1000000 = 25%
-    expect(getConcentrationRisk(250000, 1000000, config)).toBe("warning");
-  });
-
-  it("returns critical at or above catastrophic threshold", () => {
-    // 400000 / 1000000 = 40%
-    expect(getConcentrationRisk(400000, 1000000, config)).toBe("critical");
-  });
-
-  it("returns critical at exactly the catastrophicThreshold (>=)", () => {
-    // 350000 / 1000000 = 0.35 === catastrophicThreshold
-    expect(getConcentrationRisk(350000, 1000000, config)).toBe("critical");
   });
 });
 

@@ -14,7 +14,7 @@ function KPIRow({ label, kpiKey, value, display }) {
 
 export default function SimScreen({
   canvasRef, activeEvent, simLog, fin, staff, dayProgress,
-  greets = 0, onCanvasMove, onCanvasLeave, onCanvasClick,
+  greets = 0, day = {}, onCanvasMove, onCanvasLeave, onCanvasClick,
 }) {
   // Compact card for the 180px sidebar — tighter padding than the shared
   // `panel` token, which is sized for the full-width setup/report screens.
@@ -83,6 +83,22 @@ export default function SimScreen({
           style={{ display: "block", borderRadius: 6, border: `1px solid ${C.border}` }} />
 
         <div style={{ width: 180, flexShrink: 0 }}>
+
+          {/* Today's counters — was a canvas-drawn HUD box; one display path now */}
+          <div style={sidebarCard}>
+            <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 10, letterSpacing: 0.5 }}>TODAY</div>
+            {[
+              ["Served",    day.served ?? 0],
+              ["Deposits",  `$${Math.round((day.deposited ?? 0) / 1000)}k`],
+              ["Walk-outs", day.walkouts ?? 0],
+              ["In queue",  day.queue ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <span style={{ color: C.dim }}>{label}</span>
+                <span style={{ color: C.text, fontWeight: 700 }}>{value}</span>
+              </div>
+            ))}
+          </div>
 
           {/* KPIs */}
           <div style={sidebarCard}>

@@ -47,17 +47,21 @@ export const FORCED_INSPECTION_TRIGGER_MS = 15000;
 // ─── ERA PROGRESS RULES ───────────────────────────────────────────────────────
 // Evaluated after each quarter. Points accumulate in fin.eraProgress (0–100).
 // gains: positive conditions; losses: negative conditions (points are negative).
+//
+// Pacing target: a played-well era 1 (positive NIM management, staffed counter,
+// no walkouts) earns ~12–14 points a quarter, reaching era 2 around quarter
+// 8–10. A hands-off game gets there a few quarters later.
 
 export const ERA_PROGRESS_RULES = {
   gains: [
     { condition: "nim",        threshold: 1.5,  points:  3 },
     { condition: "nim",        threshold: 2.5,  points:  5 },
-    { condition: "served",     threshold: 8,    points:  2 },
+    { condition: "served",     threshold: 8,    points:  3 },
     { condition: "served",     threshold: 15,   points:  4 },
     { condition: "car",        threshold: 12,   points:  3 },
     { condition: "reputation", threshold: 75,   points:  2 },
     { condition: "whaleServed",                 points:  8 },
-    { condition: "noWalkouts",                  points:  3 },
+    { condition: "noWalkouts",                  points:  4 },
   ],
   losses: [
     { condition: "robbed",                      points: -6 },
@@ -68,3 +72,12 @@ export const ERA_PROGRESS_RULES = {
     { condition: "reputation", threshold: 50,   points: -3 },
   ],
 };
+
+// ─── ERA TRANSITION ───────────────────────────────────────────────────────────
+// eraProgress reaching advanceAt promotes the bank to the next era and resets
+// the bar. cap is 2 for v1: era 2 unlocks everything already built (robbery,
+// whale, outage events; security; vault upgrades; seat purchases). Eras 3–4
+// stay locked until the canvas-metaphor redesign (see ROADMAP LONG TERM) —
+// raising the cap without that work would promote players into empty content.
+
+export const ERA_RULES = { advanceAt: 100, cap: 2 };

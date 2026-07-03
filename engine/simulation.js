@@ -1,7 +1,7 @@
 import { CUSTOMER_BEHAVIOUR, POLICY_IMPACTS, SIM_TIMING, SPAWN_RULES } from "../config/economy.js";
 import { BRANCH_EVENTS }                      from "../config/events.js";
 import { SKIN_TONES, HAIR_COLORS, STAFF_OUTFITS, ROLE_DEFAULTS, EMOTIONS, SPEEDS, CHATTER } from "../config/characters.js";
-import { ERA_PROGRESS_RULES, QUARTER_MILESTONES, FORCED_INSPECTION_TRIGGER_MS } from "../config/progression.js";
+import { ERA_PROGRESS_RULES, ERA_RULES, QUARTER_MILESTONES, FORCED_INSPECTION_TRIGGER_MS } from "../config/progression.js";
 import {
   QUEUE_SLOTS, TELLER_SLOTS, SEAT_POSITIONS, LOBBY_POSITIONS,
   EXIT_POS, VAULT_POS, MGR_POS, LOAN_DESK_POS, LOAN_BYPASS_WAYPOINT,
@@ -23,8 +23,19 @@ export function createStaffMember(role, _existing) {
   };
 }
 
+// ─── LOAN DEMAND ─────────────────────────────────────────────────────────────
+// The lending-rate slider's other half: high rates choke off applications,
+// teaser rates attract them. Pure so the curve itself is testable.
+export function loanApplicationChanceFor(policy) {
+  const base = CUSTOMER_BEHAVIOUR.loanApplicationChance;
+  if (!policy) return base;
+  const { rateElasticity, rateBaseline } = POLICY_IMPACTS.loanDemand;
+  const demand = Math.pow(policy.lendingRate / rateBaseline, -rateElasticity);
+  return Math.min(0.95, Math.max(0.02, base * demand));
+}
+
 // ─── CHARACTER FACTORY ────────────────────────────────────────────────────────
-export function createCustomer(id, queuePos, role = "customer") {
+export function createCustomer(id, queuePos, role = "customer", policy = null) {
   const defaults = ROLE_DEFAULTS[role];
   const beh      = CUSTOMER_BEHAVIOUR;
 
@@ -47,7 +58,9 @@ export function createCustomer(id, queuePos, role = "customer") {
     frustration: 0,
     baseAnger:   0,
     deposit:     randomInt(depMin, depMax),
-    loanAmt:     randomFloat() > beh.loanApplicationChance
+    // < (not >) — the pre-2026-07 roll was inverted, giving a 60% application
+    // rate for a field named loanApplicationChance: 0.4.
+    loanAmt:     randomFloat() < loanApplicationChanceFor(policy)
                    ? randomInt(beh.loanRange.min, beh.loanRange.max) : 0,
     bubble:      null,
     bubbleTimer: 0,
@@ -151,7 +164,7 @@ export function tickSimulation(s, policy, elapsed) {
 
   // 3. Rush wave drip — pending rush customers trickle in pre-annoyed.
   if (s.pendingRushSpawns > 0 && randomFloat() < SPAWN_RULES.rushDripChance) {
-    spawnCustomerInto(s, SPAWN_RULES.rushSpawn);
+    spawnCustomerInto(s, policy, SPAWN_RULES.rushSpawn);
     s.pendingRushSpawns--;
   }
 
@@ -160,7 +173,7 @@ export function tickSimulation(s, policy, elapsed) {
   const isRush   = s.activeEvent === "rush";
   if (randomFloat() < (isRush ? SPAWN_RULES.rushChance : SPAWN_RULES.baseChance)
       && inBranch < (isRush ? SPAWN_RULES.rushCap : SPAWN_RULES.baseCap)) {
-    spawnCustomerInto(s);
+    spawnCustomerInto(s, policy);
   }
 
   // 5. Evaluate and apply, one character at a time (deltas apply immediately
@@ -203,8 +216,8 @@ function fireEvent(type, s, elapsed) {
   s.eventClearAt = elapsed + SIM_TIMING.eventBannerMs;
 }
 
-function spawnCustomerInto(s, mood = null) {
-  const c = createCustomer(s.nextId++, s.queueCounter % s.queueSlots.length);
+function spawnCustomerInto(s, policy, mood = null) {
+  const c = createCustomer(s.nextId++, s.queueCounter % s.queueSlots.length, "customer", policy);
   s.chars.push(mood
     ? { ...c, frustration: mood.frustration, baseAnger: mood.baseAnger, emotion: "angry" }
     : c);
@@ -599,6 +612,17 @@ export function calculateEraProgressDelta(dayResult, fin) {
     (d, r) => preds[r.condition]?.(r, dayResult, fin) ? d + r.points : d, 0);
   return sumIf(ERA_PROGRESS_RULES.gains,  GAIN_PREDICATES)
        + sumIf(ERA_PROGRESS_RULES.losses, LOSS_PREDICATES);
+}
+
+// Applies the quarter's progress to the era bar. A full bar promotes the bank
+// to the next era (capped by ERA_RULES) and resets progress — this is what
+// unlocks era-2 events, security, vault upgrades, and seat purchases.
+export function resolveEraTransition(era, progress) {
+  const clamped = Math.min(100, Math.max(0, progress));
+  if (clamped >= ERA_RULES.advanceAt && era < ERA_RULES.cap) {
+    return { era: era + 1, eraProgress: 0, eraAdvanced: true };
+  }
+  return { era, eraProgress: clamped, eraAdvanced: false };
 }
 
 // ─── SPOT ALLOCATOR ──────────────────────────────────────────────────────────

@@ -66,6 +66,21 @@ export default function ReportScreen({ report, fin, onNextQuarter, onRestart }) 
         </div>
       )}
 
+      {/* Era advancement */}
+      {!isGameOver && report.eraAdvanced && (
+        <div style={{ ...panel, borderColor: C.gold + "66", background: "rgba(245,166,35,0.08)", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, color: C.gold, fontWeight: 700, marginBottom: 6 }}>
+            ★ Era {fin.era} unlocked: {ERA_NAMES[fin.era]}
+          </div>
+          <div style={{ fontSize: 13 }}>
+            Your bank has outgrown its first chapter. Robbers now know your vault
+            exists — hire security and upgrade it. VIP depositors start walking
+            in, your systems can fail, and you can finally expand the waiting
+            area. Staff up before the trouble arrives.
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
 
         {/* P&L */}

@@ -718,22 +718,6 @@ export function drawBubble(ctx, x, y, text, bg="#fffbee") {
   ctx.fillText(text, x, by+bh-6);
 }
 
-// ─── HUD ──────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, { served, deposited, walkouts, queueLength, greets=0 }) {
-  ctx.fillStyle="rgba(20,16,12,0.86)"; ctx.beginPath(); ctx.roundRect(14,14,210,94,8); ctx.fill();
-  ctx.strokeStyle="rgba(184,145,80,0.22)"; ctx.lineWidth=0.8; ctx.stroke();
-  [
-    [`Served: ${served}`,                          "#7fd4cc"],
-    [`Deposits: $${Math.round(deposited/1000)}k`,  "#e8b25a"],
-    [`Walk-outs: ${walkouts}`,                     "#e88080"],
-    [`Queue: ${queueLength}`,                      "#c8b99a"],
-    [`Greets: ${greets}`,                          "#b89150"],
-  ].forEach(([text,color],i)=>{
-    ctx.fillStyle=color; ctx.font=`bold 9px 'Nunito',sans-serif`;
-    ctx.textAlign="left"; ctx.fillText(text,26,34+i*14);
-  });
-}
-
 // Event display lives in `config/events.js` (EVT_DISPLAY) — banner label,
 // accent color, and (when applicable) border treatment all come from there.
 // Adding a new event = one config entry, no changes here. See the
@@ -818,7 +802,7 @@ function drawInteractTimer(ctx, char, simElapsed) {
 // ─── MAIN RENDER FRAME ────────────────────────────────────────────────────────
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
-          hudState, queueSlots, tellerSlots, loanDeskPos, seatPositions,
+          queueSlots, tellerSlots, loanDeskPos, seatPositions,
           tellerRoster, loanOfficerRoster, hoveredChar, simElapsed = 0 } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
@@ -898,7 +882,6 @@ export function renderFrame(ctx, renderState, ts) {
     });
 
   tickParticles(ctx, particles, 16);
-  drawHUD(ctx, hudState);
   drawEventBanner(ctx, activeEvent);
   drawEventBorder(ctx, activeEvent);
 }
