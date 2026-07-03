@@ -265,6 +265,21 @@ and doesn't enforce consequences for bad decisions.*
 
 ### UI polish
 
+- [ ] **UI credibility pass (from the 2026-07-02 critical review)** — the four
+      items deliberately split out of the simplification refactor, in payoff
+      order: (1) high-DPI canvas rendering via `devicePixelRatio` (currently
+      blurry on retina/4K), (2) responsive scaling — canvas `max-width` +
+      SetupScreen `auto-fit` grid; the app breaks below ~1280px, (3) spacing
+      and font scales in `ui/theme.js`, sweeping the ad-hoc inline values
+      across the three screens, (4) ReportScreen quarter-over-quarter deltas
+      replacing the third copy of the live KPIs. **Skills to load, one per
+      task** (unzipped local paths in `C:\Projects\claude-skills`):
+      `engineering-team/skills/senior-frontend` for (1)–(2),
+      `product-team/skills/ui-design-system` for (3)–(4) (design tokens +
+      responsive calculations), and `engineering-team/playwright-pro` to
+      verify — scripted screenshots at 1280×720 / high-DPI / narrow widths,
+      which also feeds the `demo-video` skill for the README capture.
+
 - [ ] **Role clarity for chibis — legend panel in HUD (working direction)** —
       desks have nameplates ("LOANS") but the chibis themselves don't read
       as a specific role. The 2026-05-16 playtest produced "I see 2 people
