@@ -8,12 +8,9 @@ export const CANVAS_H = 640;
 const ISO_TW = 192;
 const ISO_TH = 96;
 
-// Single coherent unit for ALL furniture sizing.
-// Previously some objects used a 2x inflation (S = ISO_TW/72) while characters
-// and small props used raw pixels — that mismatch made desks/vault feel like
-// they were on a different floor. We now express everything in tile-fractions
-// and only convert to pixels via the iso transform.
-const U = ISO_TW / 6; // ≈ 24px per "small unit" — matches character footprint
+// All furniture sizing is expressed in tile-fractions and converted to pixels
+// only through the iso transform — never raw pixel anchors. (See the vault
+// decision-log entry in ROADMAP.md for the incident that made this a rule.)
 
 // ─── REFINED PALETTE — modern marble-and-walnut bank ─────────────────────────
 const PAL = {
@@ -92,6 +89,9 @@ function drawFloor(ctx, gx, gy, color) {
   ctx.strokeStyle = PAL.floorLine; ctx.lineWidth = 0.5; ctx.stroke();
 }
 
+// Walls temporarily disabled while the layout is tuned; re-enable by
+// uncommenting the two calls in renderFrame.
+// eslint-disable-next-line no-unused-vars
 function drawWall(ctx, gx, gy, side, wh = 78) {
   const { x, y } = toIso(gx, gy);
   ctx.fillStyle = side === "left" ? PAL.wallL : PAL.wallR;
@@ -802,7 +802,7 @@ function drawInteractTimer(ctx, char, simElapsed) {
 // ─── MAIN RENDER FRAME ────────────────────────────────────────────────────────
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
-          queueSlots, tellerSlots, loanDeskPos, seatPositions,
+          queueSlots, tellerSlots, seatPositions,
           tellerRoster, loanOfficerRoster, hoveredChar, simElapsed = 0 } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);

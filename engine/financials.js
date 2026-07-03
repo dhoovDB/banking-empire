@@ -1,4 +1,4 @@
-import { KPI_DEFINITIONS, POLICY_IMPACTS, PL_RULES } from "../config/economy.js";
+import { KPI_DEFINITIONS, PL_RULES } from "../config/economy.js";
 import { STAFF_DEFINITIONS }              from "../config/characters.js";
 
 // ─── CORE BANKING CALCULATIONS ────────────────────────────────────────────────

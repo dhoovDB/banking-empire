@@ -938,3 +938,56 @@ describe("resolveEraTransition", () => {
     expect(t.eraProgress).toBe(100);
   });
 });
+
+// ─── FULL DAY INTEGRATION ────────────────────────────────────────────────────
+// Drives tickSimulation through an entire 75-second day at real tick spacing.
+// Spawns and service pacing are random, so assertions are structural: the day
+// ends on time, customers actually got served, and every claim in the
+// occupancy allocator is backed by a living character (no leaked spots —
+// the exact bug family the one-allocator refactor exists to prevent).
+
+describe("full day integration", () => {
+  it("a staffed day serves customers and leaks no occupancy claims", () => {
+    const s = createDaySimState({
+      fin:   { era: 1, year: 1, quarter: 2 }, // absQ 2 — no forced milestone
+      staff: { tellers: 3, loanOfficers: 1, security: 0 },
+      fac:   { vaultLevel: 1, waitingSeats: 3 },
+    });
+    // Deterministic schedule: one rush mid-day exercises the drip spawner,
+    // seats, and standing spots under load.
+    s.events = [{ type: "rush", triggerAt: 20000, done: false }];
+
+    const policy = makePolicy();
+    let dayOver = false;
+    for (let elapsed = 0; elapsed <= SIM_TIMING.dayLengthMs; elapsed += SIM_TIMING.tickMs) {
+      const fx = tickSimulation(s, policy, elapsed);
+      if (fx.dayOver) { dayOver = true; break; }
+
+      // Allocator invariant, checked every tick: each claimed spot belongs to
+      // exactly one present character.
+      const holders = { teller: [], loanDesk: [], seat: [] };
+      for (const c of s.chars) {
+        if (c.state === "exited") continue;
+        for (const [kind, spotId] of (c.seatId != null ? [["seat", c.seatId]] : []))
+          holders[kind].push(spotId);
+        if (c.useLoanDesk) holders.loanDesk.push(0);
+        else if (typeof c.tellerIndex === "number" && c.tellerIndex >= 0) holders.teller.push(c.tellerIndex);
+      }
+      for (const kind of ["teller", "loanDesk", "seat"]) {
+        for (const spotId of s.occupancy[kind]) {
+          expect(holders[kind], `${kind} spot ${spotId} at t=${elapsed} has a holder`).toContain(spotId);
+        }
+        expect(new Set(holders[kind]).size, `${kind} claims unique at t=${elapsed}`).toBe(holders[kind].length);
+      }
+    }
+
+    expect(dayOver).toBe(true);
+    // A 3-teller day reliably serves several customers (service takes ~14s;
+    // spawn pressure fills the counter well before the rush).
+    expect(s.served).toBeGreaterThan(0);
+    expect(s.deposited).toBeGreaterThan(0);
+    // The rush fired and cleared through the elapsed-time path.
+    expect(s.events[0].done).toBe(true);
+    expect(s.activeEvent).toBe(null);
+  });
+});

@@ -5,7 +5,7 @@ import { EVT_DISPLAY, BRANCH_EVENTS }                     from "./config/events.
 import { LOSS_CONDITIONS }                                from "./config/progression.js";
 import {
   calculateQuarterlyPL, calculateNIM, calculateCAR,
-  calculateOneTimeCosts, isLiquidityBreached, checkLossConditions,
+  calculateOneTimeCosts, checkLossConditions,
 } from "./engine/financials.js";
 import {
   createDaySimState, tickSimulation, interactionCommandFor, applyCommand,
@@ -109,7 +109,6 @@ export default function BankingEmpire() {
       activeTellers: s.activeTellers,
       queueSlots:    s.queueSlots,
       tellerSlots:   s.tellerSlots,
-      loanDeskPos:   s.loanDeskPos,
       seatPositions: s.seatPositions ?? [],
       tellerRoster,
       loanOfficerRoster,

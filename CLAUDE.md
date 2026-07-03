@@ -74,17 +74,18 @@ Nothing in `config/` imports from anywhere else in the project.
 
 | File | What it contains |
 |---|---|
-| `economy.js` | Starting financials, KPI definitions, policy impact rules |
-| `characters.js` | Staff roles, costs, appearance palettes |
-| `events.js` | Branch event definitions and UI display strings |
-| `progression.js` | Loss conditions, quarter milestones, era progress rules |
+| `economy.js` | Starting financials, KPI definitions, policy impacts, sim timing, spawn rules, P&L multipliers |
+| `characters.js` | Staff roles, costs, appearance palettes, movement speeds, chatter lines |
+| `events.js` | Branch event definitions (incl. per-event resolution numbers) and UI display strings |
+| `progression.js` | Loss conditions, quarter milestones, era progress + transition rules |
+| `layout.js` | Branch floor positions — queue, teller, seats, desks, exits |
 
 ### `engine/` — Pure functions
 
 | File | Key exports |
 |---|---|
 | `financials.js` | `calculateNIM`, `calculateCAR`, `calculateQuarterlyPL`, `isLiquidityBreached`, `checkLossConditions` |
-| `simulation.js` | `createStaffMember`, `createCustomer`, `evaluateCharacter`, `applyCommand`, `buildEventSchedule`, `resolveEvent` |
+| `simulation.js` | `createDaySimState`, `tickSimulation`, `evaluateCharacter`, `applyCommand`, `interactionCommandFor`, `resolveEvent`, `resolveEraTransition`, `loanApplicationChanceFor` |
 
 ### `renderer/` — Canvas drawing only
 
@@ -105,9 +106,12 @@ All components receive props and render. None own state.
 
 ### `BankingEmpire.jsx` — The one smart component
 
-Owns all game state. Runs the simulation loop via `setInterval` and the 
-render loop via `requestAnimationFrame`. Routes between three screens via 
-`phase` state (`"setup"` → `"simulating"` → `"report"` → `"setup"`).
+Owns all React state. The `setInterval` loop feeds wall-clock time to the
+engine's `tickSimulation` and renders its effects; the render loop runs via
+`requestAnimationFrame`. Routes between three screens via `phase` state
+(`"setup"` → `"simulating"` → `"report"` → `"setup"`). Canvas clicks become
+engine commands via `interactionCommandFor` + `applyCommand` — the component
+never mutates characters directly.
 
 ---
 
@@ -157,6 +161,17 @@ performance. React state is only updated when the quarter ends.
 **All randomness flows through `randomFloat()` in `simulation.js`.**
 Do not add `Math.random()` calls elsewhere — this keeps replays possible.
 
+**One writer for character and day state.**
+Every mutation during the day happens inside `tickSimulation` or through
+`applyCommand` (canvas clicks included). Do not mutate `simState.current`
+or character objects from React handlers, timeouts, or effects — that
+bypass pattern is where the pre-2026-07 bug families lived.
+
+**Layer boundaries are lint rules, not just prose.**
+`eslint.config.js` encodes "layers import leftward only" and "no React in
+engine/renderer" via `no-restricted-imports`. Run `npm run lint` before
+committing; a Lovable or AI edit that collapses layers fails lint.
+
 ---
 
 ## In-game copy register
@@ -194,7 +209,8 @@ npm install
 npm run dev
 ```
 
-Requires Node 18+.
+Requires Node 18+. `npm test` runs the Vitest suite; `npm run lint` checks
+code quality and the layer-boundary rules.
 
 ---
 
@@ -202,6 +218,16 @@ Requires Node 18+.
 
 *Project and architectural decisions are logged in `ROADMAP.md` (its Decision log
 and Key design decisions sections). This log tracks changes to this CLAUDE.md only.*
+
+### 2026-07-03 — Updated for the simplification pass
+
+File tables gained `config/layout.js` and the new engine exports
+(`createDaySimState`, `tickSimulation`, `interactionCommandFor`,
+`resolveEraTransition`, `loanApplicationChanceFor`). Two key design
+decisions added: single-writer state (all day mutations via
+`tickSimulation`/`applyCommand`) and lint-enforced layer boundaries.
+The full refactor rationale lives in ROADMAP.md's 2026-07-03 decision-log
+entries.
 
 ### 2026-05-25 — Adopted the portfolio ROADMAP standard
 

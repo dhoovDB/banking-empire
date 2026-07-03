@@ -1,6 +1,6 @@
 import { CUSTOMER_BEHAVIOUR, POLICY_IMPACTS, SIM_TIMING, SPAWN_RULES } from "../config/economy.js";
 import { BRANCH_EVENTS }                      from "../config/events.js";
-import { SKIN_TONES, HAIR_COLORS, STAFF_OUTFITS, ROLE_DEFAULTS, EMOTIONS, SPEEDS, CHATTER } from "../config/characters.js";
+import { SKIN_TONES, HAIR_COLORS, STAFF_OUTFITS, ROLE_DEFAULTS, SPEEDS, CHATTER } from "../config/characters.js";
 import { ERA_PROGRESS_RULES, ERA_RULES, QUARTER_MILESTONES, FORCED_INSPECTION_TRIGGER_MS } from "../config/progression.js";
 import {
   QUEUE_SLOTS, TELLER_SLOTS, SEAT_POSITIONS, LOBBY_POSITIONS,
@@ -256,7 +256,7 @@ export function interactionCommandFor(char) {
 
 // ─── CHARACTER EVALUATION (pure) ─────────────────────────────────────────────
 export function evaluateCharacter(char, simState, policy) {
-  const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos, vaultPos } = simState;
+  const { activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos, vaultPos } = simState;
   const beh     = CUSTOMER_BEHAVIOUR;
   const impacts = POLICY_IMPACTS;
 

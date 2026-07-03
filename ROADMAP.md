@@ -325,20 +325,17 @@ and doesn't enforce consequences for bad decisions.*
       `drawTellerCounter` uses — ideally lift those constants into a shared
       module so the renderer and engine can't drift again.
 
-- [ ] **Per-tick personal-space rule (collision avoidance)** — the lobby
-      allocator (shipped 2026-05-11) prevents stacking *within waiting state*
-      by giving each waiter a unique tile. It does not prevent transient
-      overlap during transitions — e.g. a customer walking from queue to seat
-      can pass through another customer walking the opposite way. A per-tick
-      rule in `moveToward` (or its caller) that checks proposed steps against
-      other character positions and freezes/deflects on near-miss would close
-      this gap. Shape A in the original design discussion. Deferred because:
-      (a) the allocator fix covers the visible bunching that prompted the
-      task, (b) collision physics adds deadlock and tuning risk that the
-      discrete-allocator pattern avoids, and (c) the architecture already
-      treats positions as discrete claims, so adding a continuous-space rule
-      would be a new pattern in the engine. Worth picking up if transient
-      overlap becomes a recurring playtest complaint.
+- [ ] **Per-tick personal-space rule (collision avoidance)** — waiting-state
+      stacking is prevented by unique standing spots (deterministic
+      `standingSpotFor` since 2026-07-03, previously the claimed-lobby-tile
+      allocator). Neither prevents transient overlap during transitions —
+      e.g. a customer walking from queue to seat can pass through another
+      walking the opposite way. A per-tick rule in `moveToward` (or its
+      caller) that checks proposed steps against other character positions
+      and freezes/deflects on near-miss would close this gap. Shape A in the
+      original design discussion. Deferred because collision physics adds
+      deadlock and tuning risk for a purely cosmetic gap. Worth picking up
+      if transient overlap becomes a recurring playtest complaint.
 
 - [x] **Loan officer roster on canvas** — when loan officers > 0, named chibi from `loanOfficerRoster` draws at the loan desk (back side). Ghost stays for the unhired case. (2026-05-08)
 
@@ -390,11 +387,11 @@ and doesn't enforce consequences for bad decisions.*
       - [ ] CAR below regulatory minimum ignored for one quarter triggers seizure
       - [ ] Multiple endings based on playstyle (community pillar, growth machine, steady hand)
 
-- [ ] **Era 2 unlock wired** — eraProgress accumulates but era transition
-      doesn't change available staff, events, or facilities yet.
-      - [ ] Verify vault upgrade and facility costs flow through
-            `calculateOneTimeCosts()` and deduct at sim start. The era 1
-            staff-cost path already exists; era 2 facilities should ride it.
+- [x] **Era 2 unlock wired** — pulled forward into v1 on 2026-07-03 (see
+      decision log): `resolveEraTransition` promotes the bank when
+      eraProgress fills, capped at era 2 by `ERA_RULES` in
+      `config/progression.js`. Vault and seat costs already flowed through
+      `calculateOneTimeCosts()`; verified while wiring. (2026-07-03)
 
 ### Financial model depth
 
@@ -403,11 +400,13 @@ and doesn't enforce consequences for bad decisions.*
 
 ### Testing
 
-- [ ] **Thorough unit test coverage** — initial Vitest suite covers
-      `engine/financials.js`. Expand to `engine/simulation.js` (evaluateCharacter,
-      resolveEvent, buildEventSchedule) and loss condition evaluation in
-      `engine/financials.js`. Write tests before adding era 2 content so
-      regressions surface immediately.
+- [x] **Thorough unit test coverage** — the 2026-07-03 simplification pass
+      closed the bulk of this: `tickSimulation` day-level tests (event firing,
+      banner expiry, click windows, a full 750-tick day with per-tick
+      occupancy invariants), interaction-command tests, loan-demand and
+      era-transition tests. 103 tests. Remaining gaps (resolveEvent per-type
+      spawn details, buildEventSchedule probability bounds) are small enough
+      to add alongside whatever era-2 content touches them. (2026-07-03)
 
 ---
 
@@ -557,6 +556,60 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-07-03 — Simplification pass: the engine owns the day
+
+Four commits (phases 1–4) that shrank the codebase while completing its own
+architecture contract, prompted by "every bug I squash raises two more."
+The diagnosis: bugs bred exclusively in `BankingEmpire.jsx`, the one file
+with no tests, because game data (floor layout, ~40 tuning constants) and
+game orchestration (the tick loop, click mutations, setTimeout event clears)
+lived in the component instead of the layers built for them. What changed:
+
+- **`tickSimulation()` in the engine owns the whole 75-second day** — event
+  firing, spawning, character evaluate/apply, ambient bubbles, banner expiry
+  (elapsed-time `eventClearAt` replaced racing setTimeouts). The component's
+  interval is ~10 lines of glue. The day is unit-testable for the first time.
+- **Clicks are commands.** GREET_CUSTOMER / GREET_WHALE / DISPATCH_SECURITY /
+  DISTRACT_INSPECTOR run through `applyCommand` like every other mutation.
+  Three latent bugs died with the bypass path: the inspection banner that
+  never cleared on distract, greets pushing frustration negative, un-clicked
+  robbers escaping with an undefined lossFactor.
+- **One spot allocator.** Three parallel Set-pairs (teller/seat/lobby claims)
+  became one `occupancy` map; every exit path calls `releaseHeldSpots` once,
+  derived from the character's own fields — a forgotten per-kind release is
+  no longer writable. Lobby claims deleted outright: standing positions are
+  computed from waiting order (`standingSpotFor`), so the line shuffles
+  forward like a real queue and there is nothing to leak.
+- **Layout and tuning constants live in config** (`config/layout.js`,
+  `SIM_TIMING`, `SPAWN_RULES`, `PL_RULES`, `SPEEDS`, `CHATTER`, event
+  `resolution` blocks). ESLint `no-restricted-imports` rules now encode the
+  layer boundaries, so a Lovable/AI edit that collapses layers fails lint
+  instead of shipping.
+
+Net: `BankingEmpire.jsx` 535 → ~300 lines, one command and one field-family
+deleted, 96 → 103 tests, and the canvas HUD retired in favor of the React
+sidebar (one display path).
+
+### 2026-07-03 — Era advancement pulled into v1; concentration risk cut
+
+`fin.era` was never incremented anywhere — the progress bar filled and
+nothing happened, which kept robbery/whale/outage events, security staff,
+vault upgrades, and seat purchases permanently unreachable (~40% of built
+content). v1 originally deferred "era 2 unlock wired" to v2, but a progress
+bar that lies is worse than a smaller roadmap: `resolveEraTransition` now
+promotes the bank at 100 progress, capped at era 2 (`ERA_RULES`). Eras 3–4
+stay locked pending the canvas-metaphor redesign. Gains rebalanced
+(served≥8: 2→3, noWalkouts: 3→4) so a played-well era 1 promotes around
+quarter 8–10. ReportScreen announces the promotion.
+
+Two dead mechanics also resolved: `CONCENTRATION_RISK` +
+`getConcentrationRisk` deleted (never called from game flow; referenced a
+"bankRush" event that doesn't exist — the mechanic returns to the v2 shelf),
+and `POLICY_IMPACTS.loanDemand` wired instead of deleted —
+`loanApplicationChanceFor` scales applications by lending-rate elasticity,
+fixing an inverted roll that had granted loans to 60% of customers under a
+field named `loanApplicationChance: 0.4`.
+
 ### 2026-06-03 — Loan officers capped at 1; honest v1 over half-built v2
 
 `STAFF_DEFINITIONS.loanOfficers.max` was 3, but the engine models a single loan
@@ -681,6 +734,12 @@ a test instead of shipping silently.
       b) over building multi-desk throughput (option a) because v1 ships before
       v2 features; option (a) is preserved as the MEDIUM TERM "Multi-desk loan
       throughput" entry. 96/96 passing. See decision log 2026-06-03. (2026-06-03)
+- [x] Simplification pass phases 1–4 — engine-owned day (`tickSimulation`),
+      click commands, one spot allocator + deterministic standing spots,
+      layout/tuning constants to config, era advancement wired (cap 2),
+      loan demand elasticity wired (inverted roll fixed), concentration risk
+      and canvas HUD deleted, ESLint layer-boundary rules added. 103/103
+      tests. See the two 2026-07-03 decision-log entries. (2026-07-03)
 - [x] §1e rush seat-usage recurrence diagnosed — **not a bug.** New rush-replica integration test (`engine/simulation.test.js`, "real 8-customer replica fills all 3 seats") drives 8 angry customers (frustration 0.6 / baseAnger 0.45) through the full `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline with both era-1 tellers busy and `activeEvent: "rush"` doubling frustration growth. All 3 seats fill, zero walkouts. The earlier test injected only 3 calm customers with 0 tellers; this one exercises the real spawn conditions and proves the allocator is correct under load. The "one seat at a time" observation is seat→teller churn (waiting priority 1 pulls seated customers to a freed teller), not a dropped claim — correct behaviour for a transient waiting seat. 93/93 passing. See §1e for the full diagnosis. (2026-06-01)
 
 ---
@@ -696,5 +755,5 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-06-03. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-07-03. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
