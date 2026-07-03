@@ -90,6 +90,11 @@ export function createDaySimState({ fin, staff, fac, setupCost = 0, dayStart = 0
     chars:          [],
     nextId:         0,
     dayStart,
+    // Quarter-start financial snapshot. finishDay MUST read this, not the
+    // component's `fin` state: the day-loop closure captures a pre-update
+    // render, so React state seen from inside it is stale by exactly the
+    // HUD-only setup-cost deduction. The P&L charges setupCost from here.
+    finAtDayStart:  { ...fin },
     served:         0,
     deposited:      0,
     loans:          0,

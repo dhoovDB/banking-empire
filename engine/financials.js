@@ -91,10 +91,12 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
 
   const updatedFin = {
     ...fin,
-    // setupCost is paid at sim start (see BankingEmpire.startSim), so fin.cash
-    // is already post-deduction. Add it back here so netIncome can carry the
-    // expense in the P&L breakdown without charging cash a second time.
-    cash:       fin.cash + netIncome + (dayResult.setupCost || 0),
+    // `fin` must be the quarter-start snapshot (simState.finAtDayStart) —
+    // NOT the live React state, which already shows the HUD-only setup-cost
+    // deduction. netIncome carries setupCost, so cash is charged exactly
+    // once, here. (The pre-2026-07 add-back assumed post-deduction input;
+    // a stale render closure meant it never was, silently refunding hires.)
+    cash:       fin.cash + netIncome,
     deposits:   fin.deposits + depositGrowth,
     loans:      fin.loans + loanGrowth,
     equity:     fin.equity + Math.max(0, Math.round(netIncome * PL_RULES.equityRetention)),

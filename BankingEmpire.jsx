@@ -186,9 +186,11 @@ export default function BankingEmpire() {
 
   // ── START SIMULATION ─────────────────────────────────────────────────────────
   const startSim = useCallback(() => {
-    // Deduct hire/upgrade costs at the moment of transition so the SimScreen
-    // HUD reflects post-deduction cash. QPL's cash equation adds this back to
-    // avoid double-charging at finishDay; the P&L still surfaces it as a line.
+    // Deduct hire/upgrade costs from the *displayed* cash so the SimScreen HUD
+    // reflects the spend immediately. This is presentation only: the
+    // authoritative charge happens once in calculateQuarterlyPL, computed from
+    // the pre-deduction snapshot carried in simState.finAtDayStart (finishDay
+    // can't read React state — the day-loop closure predates this setFin).
     const setupCost = calculateOneTimeCosts(staff, fac, committed);
     if (setupCost > 0) setFin(f => ({ ...f, cash: f.cash - setupCost }));
 
@@ -256,14 +258,17 @@ export default function BankingEmpire() {
       whaleServed:    s.whaleServed,
     };
 
-    const pl = calculateQuarterlyPL(fin, policy, staff, dayResult);
+    // Quarter-start snapshot, not the `fin` render closure — see the
+    // finAtDayStart note in createDaySimState.
+    const finStart = s.finAtDayStart;
+    const pl = calculateQuarterlyPL(finStart, policy, staff, dayResult);
 
     const nim = calculateNIM(pl.updatedFin.loans, pl.updatedFin.deposits, policy.lendingRate, policy.depositRate);
     const car = calculateCAR(pl.updatedFin.equity, pl.updatedFin.loans);
     const updatedFin = { ...pl.updatedFin, nim, car };
 
     const progressDelta = calculateEraProgressDelta(dayResult, updatedFin);
-    const eraTransition = resolveEraTransition(fin.era, fin.eraProgress + progressDelta);
+    const eraTransition = resolveEraTransition(finStart.era, finStart.eraProgress + progressDelta);
     updatedFin.era         = eraTransition.era;
     updatedFin.eraProgress = eraTransition.eraProgress;
 

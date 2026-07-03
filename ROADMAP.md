@@ -571,6 +571,26 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-07-03 — Setup costs were silently refunded; adversarial review caught it
+
+Found by running the `adversarial-reviewer` skill (claude-skills) over the
+simplification commits — flagged independently by two of its personas and
+promoted to blocking. `startSim` deducted hire/upgrade costs via `setFin`,
+but the day-loop's `finishDay` closure captured the render *before* that
+update, so `calculateQuarterlyPL` always received pre-deduction cash while
+its add-back assumed post-deduction — hires were charged on the HUD during
+the day, then silently refunded at quarter end. The unit tests encoded the
+same false premise ("cash: already post-deduction at sim start"), so they
+passed while reality diverged.
+
+Fix: one point of charge. `createDaySimState` carries a detached
+quarter-start snapshot (`finAtDayStart`); `finishDay` reads the snapshot
+instead of React state; the QPL add-back is deleted (netIncome carries
+setupCost, cash pays it exactly once). Tests now assert the charge lands
+in carried-forward cash. Same pass fixed the review's other should-fix:
+the multi-tick tests import live geometry from `config/layout.js` instead
+of hand-copied mirrors that could drift.
+
 ### 2026-07-03 — Simplification pass: the engine owns the day
 
 Four commits (phases 1–4) that shrank the codebase while completing its own
@@ -749,6 +769,9 @@ a test instead of shipping silently.
       b) over building multi-desk throughput (option a) because v1 ships before
       v2 features; option (a) is preserved as the MEDIUM TERM "Multi-desk loan
       throughput" entry. 96/96 passing. See decision log 2026-06-03. (2026-06-03)
+- [x] Setup-cost refund bug fixed — quarter-start snapshot in simState, QPL
+      add-back deleted, hires now actually paid from carried-forward cash.
+      Found via adversarial review; see decision log. 104/104 tests. (2026-07-03)
 - [x] Simplification pass phases 1–4 — engine-owned day (`tickSimulation`),
       click commands, one spot allocator + deterministic standing spots,
       layout/tuning constants to config, era advancement wired (cap 2),

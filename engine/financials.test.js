@@ -175,10 +175,14 @@ describe("calculateOneTimeCosts", () => {
 
 describe("calculateQuarterlyPL — setupCost cash flow", () => {
   // Zero loans/deposits/staff isolates the setupCost effect from interest, salaries, and provisions.
+  // QPL's fin input is the quarter-START snapshot (simState.finAtDayStart):
+  // pre-deduction cash. setupCost is charged exactly once, through netIncome.
+  // (The old add-back assumed post-deduction input; the stale day-loop
+  // closure meant it never was — hires were silently refunded. 2026-07-03.)
   const POLICY = { lendingRate: 6.5, depositRate: 2.0 };
   const STAFF  = { tellers: 0, loanOfficers: 0, security: 0 };
   const FIN_BASE = {
-    cash:        30000,   // already post-deduction at sim start
+    cash:        30000,   // quarter-start snapshot — pre-deduction
     deposits:    0,
     loans:       0,
     equity:      20000,
@@ -197,17 +201,18 @@ describe("calculateQuarterlyPL — setupCost cash flow", () => {
   const PRE_PAID_SETUP = 20000;
   const FIN_EMPTY_BANK = { ...FIN_BASE, deposits: 1, loans: 1 };  // avoid liquidity-floor edge in cash flow asserts
 
-  it("does not double-deduct setupCost from cash (paid at sim start)", () => {
+  it("charges setupCost exactly once — through netIncome, from the snapshot", () => {
     const dayResult = { ...ZERO_DAY, setupCost: PRE_PAID_SETUP };
     const result = calculateQuarterlyPL(FIN_EMPTY_BANK, POLICY, STAFF, dayResult);
-    // netIncome carries the expense for the P&L story.
+    // netIncome carries the expense for the P&L story…
     expect(result.netIncome).toBe(-PRE_PAID_SETUP);
     expect(result.setupCost).toBe(PRE_PAID_SETUP);
-    // Cash should be unchanged: -PRE_PAID_SETUP from netIncome, +PRE_PAID_SETUP from add-back.
-    expect(result.updatedFin.cash).toBe(FIN_EMPTY_BANK.cash);
+    // …and carried-forward cash actually pays it. The old assertion here
+    // (cash unchanged) is precisely the refund bug this now guards against.
+    expect(result.updatedFin.cash).toBe(FIN_EMPTY_BANK.cash - PRE_PAID_SETUP);
   });
 
-  it("zero setupCost: cash equation is fin.cash + netIncome (no add-back kicks in)", () => {
+  it("zero setupCost: cash equation is fin.cash + netIncome", () => {
     const dayResult = { ...ZERO_DAY, setupCost: 0 };
     const result = calculateQuarterlyPL(FIN_EMPTY_BANK, POLICY, STAFF, dayResult);
     expect(result.updatedFin.cash).toBe(FIN_EMPTY_BANK.cash + result.netIncome);

@@ -7,6 +7,17 @@ import {
 import { BRANCH_EVENTS } from "../config/events.js";
 import { SIM_TIMING, CUSTOMER_BEHAVIOUR } from "../config/economy.js";
 import { ERA_RULES } from "../config/progression.js";
+// Live branch geometry for the multi-tick blocks — imported, not mirrored,
+// so the integration tests can't drift from what the player actually sees.
+import {
+  QUEUE_SLOTS as LIVE_QUEUE_SLOTS,
+  TELLER_SLOTS as LIVE_TELLER_SLOTS,
+  SEAT_POSITIONS as LIVE_SEAT_POSITIONS,
+  LOBBY_POSITIONS as LIVE_LOBBY_POSITIONS,
+  EXIT_POS as LIVE_EXIT_POS,
+  LOAN_DESK_POS as LIVE_LOAN_DESK_POS,
+  LOAN_BYPASS_WAYPOINT as LIVE_LOAN_BYPASS_WAYPOINT,
+} from "../config/layout.js";
 
 // One-allocator occupancy builder: occ({ teller: [0, 1], seat: [2] })
 function occ({ teller = [], loanDesk = [], seat = [] } = {}) {
@@ -506,28 +517,17 @@ describe("standing spots", () => {
 // tick. This test exercises exactly that path. Logged as ROADMAP §1e.
 
 describe("multi-tick rush — all 3 default seats fill correctly", () => {
-  // Mirror BankingEmpire.jsx layout constants so the test exercises the same
-  // geometry the live sim sees. A passing test with throwaway coordinates
-  // wouldn't say anything about what the player observed on the canvas.
-  const QUEUE_SLOTS = [
-    {gx:3.5,gy:4.0},
-    {gx:3.1,gy:4.2}, {gx:3.9,gy:4.2},
-    {gx:2.7,gy:4.4}, {gx:3.5,gy:4.4}, {gx:4.3,gy:4.4},
-    {gx:3.1,gy:4.6}, {gx:3.9,gy:4.6},
-    {gx:2.7,gy:4.8}, {gx:4.3,gy:4.8},
-  ];
-  const TELLER_SLOTS = [
-    {gx:2.4,gy:3.10}, {gx:2.95,gy:3.10}, {gx:3.5,gy:3.10},
-    {gx:4.05,gy:3.10}, {gx:4.6,gy:3.10}, {gx:5.15,gy:3.10},
-  ];
-  // The era-1 default — 3 seats, mirrors BankingEmpire.jsx SEAT_POSITIONS
-  // (shifted +0.1 gx on 2026-05-16 so the leftmost seat sits on the floor)
-  const SEAT_POSITIONS = [
-    {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
-  ];
-  const EXIT_POS             = {gx:3.5, gy:5.8};
-  const LOAN_DESK_POS        = {gx:2.2, gy:2.4};
-  const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
+  // Live geometry from config/layout.js so the test exercises exactly what
+  // the sim sees. (These were hand-copied mirrors of BankingEmpire.jsx
+  // constants until layout moved to config on 2026-07-02 — imports mean the
+  // test can no longer silently drift from the real floor plan.)
+  const QUEUE_SLOTS   = LIVE_QUEUE_SLOTS;
+  const TELLER_SLOTS  = LIVE_TELLER_SLOTS;
+  // The era-1 default — 3 seats (DEFAULT_FACILITIES.waitingSeats).
+  const SEAT_POSITIONS = LIVE_SEAT_POSITIONS.slice(0, 3);
+  const EXIT_POS             = LIVE_EXIT_POS;
+  const LOAN_DESK_POS        = LIVE_LOAN_DESK_POS;
+  const LOAN_BYPASS_WAYPOINT = LIVE_LOAN_BYPASS_WAYPOINT;
 
   // 0 tellers forces every customer to JOIN_WAIT — the same state they'd be in
   // mid-rush when the single era-1 teller is already serving someone.
@@ -636,34 +636,17 @@ describe("multi-tick rush — all 3 default seats fill correctly", () => {
 // loop breaks on "3 seated" long before any walkout is possible.
 
 describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => {
-  // Layout constants mirror BankingEmpire.jsx so the test sees the live geometry.
-  const QUEUE_SLOTS = [
-    {gx:3.5,gy:4.0},
-    {gx:3.1,gy:4.2}, {gx:3.9,gy:4.2},
-    {gx:2.7,gy:4.4}, {gx:3.5,gy:4.4}, {gx:4.3,gy:4.4},
-    {gx:3.1,gy:4.6}, {gx:3.9,gy:4.6},
-    {gx:2.7,gy:4.8}, {gx:4.3,gy:4.8},
-  ];
-  const TELLER_SLOTS = [
-    {gx:2.4,gy:3.10}, {gx:2.95,gy:3.10}, {gx:3.5,gy:3.10},
-    {gx:4.05,gy:3.10}, {gx:4.6,gy:3.10}, {gx:5.15,gy:3.10},
-  ];
+  // Live geometry imported from config/layout.js (see note on the block above).
+  const QUEUE_SLOTS   = LIVE_QUEUE_SLOTS;
+  const TELLER_SLOTS  = LIVE_TELLER_SLOTS;
   // Era-1 default — 3 seats (DEFAULT_FACILITIES.waitingSeats).
-  const SEAT_POSITIONS = [
-    {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
-  ];
+  const SEAT_POSITIONS = LIVE_SEAT_POSITIONS.slice(0, 3);
   // Real overflow tiles so the 5 unseated waiters have somewhere to stand
   // instead of being forced into spurious frustration/walkouts.
-  const LOBBY_POSITIONS = [
-    {gx:3.5, gy:5.0},
-    {gx:3.1, gy:5.2}, {gx:3.9, gy:5.2},
-    {gx:2.7, gy:5.4}, {gx:4.3, gy:5.4},
-    {gx:1.8, gy:5.0}, {gx:5.2, gy:5.0},
-    {gx:1.8, gy:5.4}, {gx:5.2, gy:5.4},
-  ];
-  const EXIT_POS             = {gx:3.5, gy:5.8};
-  const LOAN_DESK_POS        = {gx:2.2, gy:2.4};
-  const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
+  const LOBBY_POSITIONS = LIVE_LOBBY_POSITIONS;
+  const EXIT_POS             = LIVE_EXIT_POS;
+  const LOAN_DESK_POS        = LIVE_LOAN_DESK_POS;
+  const LOAN_BYPASS_WAYPOINT = LIVE_LOAN_BYPASS_WAYPOINT;
 
   // 2 tellers, both already busy serving (teller occupancy full) — the real
   // mid-rush condition. findFreeSlot returns null, so every arrival must wait,
@@ -839,6 +822,21 @@ describe("tickSimulation", () => {
     const s = makeDayState([]);
     expect(tickSimulation(s, makePolicy(), SIM_TIMING.dayLengthMs - 1).dayOver).toBe(false);
     expect(tickSimulation(s, makePolicy(), SIM_TIMING.dayLengthMs).dayOver).toBe(true);
+  });
+
+  it("carries a detached quarter-start snapshot for the end-of-day P&L", () => {
+    const fin = { era: 1, year: 1, quarter: 2, cash: 50000, eraProgress: 10 };
+    const s = createDaySimState({
+      fin,
+      staff: { tellers: 2, loanOfficers: 0, security: 0 },
+      fac:   { vaultLevel: 1, waitingSeats: 3 },
+      setupCost: 5000,
+    });
+    // Pre-deduction values, decoupled from the caller's object — finishDay
+    // reads this instead of React state (which the day-loop closure staled).
+    expect(s.finAtDayStart.cash).toBe(50000);
+    fin.cash = 0;
+    expect(s.finAtDayStart.cash).toBe(50000);
   });
 
   it("fires scheduled events once and reports them as effects", () => {
