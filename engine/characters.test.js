@@ -4,7 +4,7 @@ import { STAFF_DEFINITIONS, DEFAULT_STAFF } from "../config/characters.js";
 // Staffing caps must match what the engine can actually model. The loan-officer
 // cap in particular guards a silent failure: the engine models a single loan
 // desk (every check in engine/simulation.js is binary `loanOfficers > 0` against
-// one loanDeskPos/loanDeskOccupied, and the renderer only ever draws
+// one loanDeskPos/occupancy.loanDesk spot, and the renderer only ever draws
 // loanOfficerRoster[0]). With max > 1 a player could hire a 2nd or 3rd officer
 // for $8k + $4k/qtr each and get zero throughput and no second chibi. v1 caps
 // the role at 1 to stay honest; raising it must travel with the multi-desk

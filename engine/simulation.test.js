@@ -6,6 +6,11 @@ import {
 import { BRANCH_EVENTS } from "../config/events.js";
 import { SIM_TIMING }    from "../config/economy.js";
 
+// One-allocator occupancy builder: occ({ teller: [0, 1], seat: [2] })
+function occ({ teller = [], loanDesk = [], seat = [] } = {}) {
+  return { teller: new Set(teller), loanDesk: new Set(loanDesk), seat: new Set(seat) };
+}
+
 // Minimal simState for tests — only the fields evaluateCharacter/applyCommand need
 function makeSimState(overrides = {}) {
   return {
@@ -19,8 +24,7 @@ function makeSimState(overrides = {}) {
     exitPos:             { gx: 5.0, gy: 7.4 },
     vaultPos:            { gx: 7.4, gy: 2.3 },
     managerPos:          { gx: 1.6, gy: 2.4 },
-    occupiedTellerSlots: new Set(),
-    loanDeskOccupied:    false,
+    occupancy:           occ(),
     activeTellers:       new Set(),
     served:              0,
     deposited:           0,
@@ -31,6 +35,7 @@ function makeSimState(overrides = {}) {
     vaultLevel:          1,
     robberyLoss:         0,
     clickedCharIds:      new Set(),
+    chars:               [],
     ...overrides,
   };
 }
@@ -48,14 +53,10 @@ function atPos(char, pos) {
 
 describe("one click max per character", () => {
   it("CLAIM_SLOT fires only once — second CLAIM_SLOT on same character has no slot effect", () => {
-    const simState = makeSimState();
-    // Manually mark slot 0 as claimed
-    const newOccupied = new Set(simState.occupiedTellerSlots);
-    newOccupied.add(0);
-    simState.occupiedTellerSlots = newOccupied;
-    // Slot 0 is now occupied — slot 1 should be free
-    expect(simState.occupiedTellerSlots.has(0)).toBe(true);
-    expect(simState.occupiedTellerSlots.has(1)).toBe(false);
+    const simState = makeSimState({ occupancy: occ({ teller: [0] }) });
+    // Slot 0 is occupied — slot 1 should be free
+    expect(simState.occupancy.teller.has(0)).toBe(true);
+    expect(simState.occupancy.teller.has(1)).toBe(false);
   });
 
   it("clickedCharIds blocks second interaction on same id", () => {
@@ -125,7 +126,7 @@ describe("waiting state — customer routes to teller when slot opens", () => {
   });
 
   it("customer entering a full bank joins wait instead", () => {
-    const simState = makeSimState({ occupiedTellerSlots: new Set([0, 1]) });
+    const simState = makeSimState({ occupancy: occ({ teller: [0, 1] }) });
     const slot = simState.queueSlots[0];
     const char = { id: 2, role: "customer", state: "entering", queuePos: 0,
                    gx: slot.gx, gy: slot.gy, loanAmt: 0, frustration: 0, baseAnger: 0 };
@@ -147,16 +148,16 @@ describe("waiting state — customer routes to teller when slot opens", () => {
     const command = { type: "CLAIM_SLOT", charId: 4, tellerIndex: 0, useLoanDesk: false };
     const { updatedChar, stateDeltas } = applyCommand(command, char, simState);
     expect(updatedChar.state).toBe("advancing");
-    expect(stateDeltas.occupiedTellerSlots.has(0)).toBe(true);
+    expect(stateDeltas.occupancy.teller.has(0)).toBe(true);
   });
 
   it("COMPLETE_SERVICE releases the occupied teller slot", () => {
-    const simState = makeSimState({ occupiedTellerSlots: new Set([0]) });
+    const simState = makeSimState({ occupancy: occ({ teller: [0] }) });
     const char = { id: 5, role: "customer", state: "served", deposit: 5000,
                    tellerIndex: 0, useLoanDesk: false, loanAmt: 0 };
     const command = { type: "COMPLETE_SERVICE", hasLoan: false, isWhale: false };
     const { stateDeltas } = applyCommand(command, char, simState);
-    expect(stateDeltas.occupiedTellerSlots.has(0)).toBe(false);
+    expect(stateDeltas.occupancy.teller.has(0)).toBe(false);
   });
 });
 
@@ -164,7 +165,7 @@ describe("waiting state — customer routes to teller when slot opens", () => {
 
 describe("loan desk routing", () => {
   it("loan customer with available loan officer claims loan desk", () => {
-    const simState = makeSimState({ loanOfficers: 1, loanDeskOccupied: false });
+    const simState = makeSimState({ loanOfficers: 1 });
     const slot = simState.queueSlots[0];
     const char = { id: 6, role: "customer", state: "entering", queuePos: 0,
                    gx: slot.gx, gy: slot.gy, loanAmt: 10000, frustration: 0, baseAnger: 0 };
@@ -173,85 +174,85 @@ describe("loan desk routing", () => {
     expect(command.useLoanDesk).toBe(true);
   });
 
-  it("CLAIM_SLOT with useLoanDesk marks loanDeskOccupied", () => {
+  it("CLAIM_SLOT with useLoanDesk claims the loan desk spot", () => {
     const simState = makeSimState({ loanOfficers: 1 });
     const char = { id: 7, role: "customer", state: "entering", gx: 0, gy: 0, loanAmt: 10000 };
     const command = { type: "CLAIM_SLOT", charId: 7, tellerIndex: -1, useLoanDesk: true };
     const { updatedChar, stateDeltas } = applyCommand(command, char, simState);
     expect(updatedChar.useLoanDesk).toBe(true);
-    expect(stateDeltas.loanDeskOccupied).toBe(true);
+    expect(stateDeltas.occupancy.loanDesk.has(0)).toBe(true);
   });
 
   it("COMPLETE_SERVICE releases loan desk when useLoanDesk is true", () => {
-    const simState = makeSimState({ loanDeskOccupied: true });
+    const simState = makeSimState({ occupancy: occ({ loanDesk: [0] }) });
     const char = { id: 8, role: "customer", state: "served", deposit: 5000,
                    tellerIndex: -1, useLoanDesk: true, loanAmt: 10000 };
     const command = { type: "COMPLETE_SERVICE", hasLoan: true, isWhale: false };
     const { stateDeltas } = applyCommand(command, char, simState);
-    expect(stateDeltas.loanDeskOccupied).toBe(false);
+    expect(stateDeltas.occupancy.loanDesk.has(0)).toBe(false);
   });
 });
 
-// ─── LOAN BYPASS WAYPOINT ────────────────────────────────────────────────────
-// Loan customers route around the left end of the teller counter via a single
+// ─── LOAN BYPASS PATH ────────────────────────────────────────────────────────
+// Loan customers route around the left end of the teller counter via a path
 // waypoint, both when advancing to the loan desk and when leaving from it.
 
-describe("loan bypass waypoint", () => {
-  it("CLAIM_SLOT with useLoanDesk sets nextWaypoint to the bypass point", () => {
+describe("loan bypass path", () => {
+  it("CLAIM_SLOT with useLoanDesk puts the bypass point on the path", () => {
     const simState = makeSimState({ loanOfficers: 1 });
     const char = { id: 10, role: "customer", state: "entering", gx: 0, gy: 0, loanAmt: 10000 };
     const command = { type: "CLAIM_SLOT", charId: 10, tellerIndex: -1, useLoanDesk: true };
     const { updatedChar } = applyCommand(command, char, simState);
-    expect(updatedChar.nextWaypoint).toEqual(simState.loanBypassWaypoint);
+    expect(updatedChar.path).toEqual([simState.loanBypassWaypoint]);
   });
 
-  it("CLAIM_SLOT without useLoanDesk leaves nextWaypoint null", () => {
+  it("CLAIM_SLOT without useLoanDesk leaves the path empty", () => {
     const simState = makeSimState();
     const char = { id: 11, role: "customer", state: "entering", gx: 0, gy: 0, loanAmt: 0 };
     const command = { type: "CLAIM_SLOT", charId: 11, tellerIndex: 0, useLoanDesk: false };
     const { updatedChar } = applyCommand(command, char, simState);
-    expect(updatedChar.nextWaypoint).toBeNull();
+    expect(updatedChar.path).toEqual([]);
   });
 
-  it("advancing customer with nextWaypoint moves toward waypoint, then clears, then targets loan desk", () => {
-    const simState = makeSimState({ loanOfficers: 1, loanDeskOccupied: true });
+  it("advancing customer walks the path first, consumes it, then targets loan desk", () => {
+    const simState = makeSimState({ loanOfficers: 1, occupancy: occ({ loanDesk: [0] }) });
     // Customer just claimed loan desk — far from waypoint
     let char = { id: 12, role: "customer", state: "advancing", gx: 3.5, gy: 5.5,
                  useLoanDesk: true, tellerIndex: -1, loanAmt: 10000,
-                 nextWaypoint: simState.loanBypassWaypoint };
+                 path: [simState.loanBypassWaypoint] };
     // Step 1: should target waypoint, not loan desk
     let cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("MOVE");
     expect(cmd.target).toEqual(simState.loanBypassWaypoint);
 
-    // Step 2: customer reaches waypoint — should request CLEAR_WAYPOINT
+    // Step 2: customer reaches waypoint — should consume it (PATH_NEXT)
     char = atPos(char, simState.loanBypassWaypoint);
     cmd = evaluateCharacter(char, simState, makePolicy());
-    expect(cmd.type).toBe("CLEAR_WAYPOINT");
+    expect(cmd.type).toBe("PATH_NEXT");
 
-    // Step 3: apply CLEAR_WAYPOINT, then advancing should target loan desk
+    // Step 3: apply PATH_NEXT, then advancing should target loan desk
     const { updatedChar } = applyCommand(cmd, char, simState);
-    expect(updatedChar.nextWaypoint).toBeNull();
+    expect(updatedChar.path).toEqual([]);
     cmd = evaluateCharacter(updatedChar, simState, makePolicy());
     expect(cmd.type).toBe("MOVE");
     expect(cmd.target).toEqual(simState.loanDeskPos);
   });
 
-  it("COMPLETE_SERVICE for loan customer sets nextWaypoint for the leaving path", () => {
-    const simState = makeSimState({ loanDeskOccupied: true });
+  it("COMPLETE_SERVICE for loan customer sets the path for the leaving leg", () => {
+    const simState = makeSimState({ occupancy: occ({ loanDesk: [0] }) });
     const char = { id: 13, role: "customer", state: "served", deposit: 5000,
                    tellerIndex: -1, useLoanDesk: true, loanAmt: 10000 };
     const command = { type: "COMPLETE_SERVICE", hasLoan: true, isWhale: false };
     const { updatedChar } = applyCommand(command, char, simState);
     expect(updatedChar.state).toBe("leaving");
-    expect(updatedChar.nextWaypoint).toEqual(simState.loanBypassWaypoint);
+    expect(updatedChar.path).toEqual([simState.loanBypassWaypoint]);
   });
 
-  it("leaving customer with nextWaypoint moves toward waypoint, not exit", () => {
+  it("leaving customer with a pending path moves toward the waypoint, not the exit", () => {
     const simState = makeSimState();
     const char = { id: 14, role: "customer", state: "leaving",
-                   gx: 2.2, gy: 2.0, useLoanDesk: true,
-                   nextWaypoint: simState.loanBypassWaypoint };
+                   gx: 2.2, gy: 2.0,
+                   path: [simState.loanBypassWaypoint] };
     const cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("MOVE");
     expect(cmd.target).toEqual(simState.loanBypassWaypoint);
@@ -272,7 +273,7 @@ describe("rush frustration multiplier", () => {
   }
 
   it("non-rush waiting customer accumulates baseline frustration", () => {
-    const simState = makeSimState({ activeEvent: null, occupiedTellerSlots: new Set([0, 1]) });
+    const simState = makeSimState({ activeEvent: null, occupancy: occ({ teller: [0, 1] }) });
     const char = makeWaitingChar();
     const cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("UPDATE_FRUSTRATION");
@@ -282,8 +283,8 @@ describe("rush frustration multiplier", () => {
   });
 
   it("rush waiting customer accumulates frustration faster than baseline", () => {
-    const simStateBaseline = makeSimState({ activeEvent: null, occupiedTellerSlots: new Set([0, 1]) });
-    const simStateRush     = makeSimState({ activeEvent: "rush", occupiedTellerSlots: new Set([0, 1]) });
+    const simStateBaseline = makeSimState({ activeEvent: null, occupancy: occ({ teller: [0, 1] }) });
+    const simStateRush     = makeSimState({ activeEvent: "rush", occupancy: occ({ teller: [0, 1] }) });
     const char = makeWaitingChar();
 
     const cmdBaseline = evaluateCharacter(char, simStateBaseline, makePolicy());
@@ -314,13 +315,12 @@ describe("waiting seats", () => {
 
   function withSeats(overrides = {}) {
     return makeSimState({
-      occupiedTellerSlots: new Set([0, 1]), // no teller free
+      occupancy: occ({ teller: [0, 1] }), // no teller free
       seatPositions: [
         { gx: 1.5, gy: 3.5 },
         { gx: 1.9, gy: 3.5 },
         { gx: 2.3, gy: 3.5 },
       ],
-      occupiedSeats: new Set(),
       ...overrides,
     });
   }
@@ -340,11 +340,11 @@ describe("waiting seats", () => {
     const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
     expect(updatedChar.seatId).toBe(0);
     expect(updatedChar.seatedAt).toBe(false); // not arrived yet
-    expect(stateDeltas.occupiedSeats.has(0)).toBe(true);
+    expect(stateDeltas.occupancy.seat.has(0)).toBe(true);
   });
 
   it("customer with claimed seat walks toward it", () => {
-    const simState = withSeats({ occupiedSeats: new Set([0]) });
+    const simState = withSeats({ occupancy: occ({ teller: [0, 1], seat: [0] }) });
     const char = makeWaitingChar({ seatId: 0, gx: 3.5, gy: 4.0 });
     const cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("MOVE");
@@ -352,16 +352,15 @@ describe("waiting seats", () => {
   });
 
   it("customer arriving at seat emits ARRIVE_AT_SEAT", () => {
-    const simState = withSeats({ occupiedSeats: new Set([0]) });
+    const simState = withSeats({ occupancy: occ({ teller: [0, 1], seat: [0] }) });
     const char = makeWaitingChar({ seatId: 0, gx: 1.5, gy: 3.5 });
     const cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("ARRIVE_AT_SEAT");
   });
 
   it("seated customer accumulates frustration slower than standing customer", () => {
-    const simState = withSeats({ seatPositions: [], occupiedSeats: new Set() }); // no seats — force standing path
-    const standingState = makeSimState({ occupiedTellerSlots: new Set([0, 1]) });
-    const seatedState   = makeSimState({ occupiedTellerSlots: new Set([0, 1]) });
+    const standingState = makeSimState({ occupancy: occ({ teller: [0, 1] }) });
+    const seatedState   = makeSimState({ occupancy: occ({ teller: [0, 1] }) });
     const standing = makeWaitingChar({ seatedAt: false });
     const seated   = makeWaitingChar({ seatedAt: true });
 
@@ -379,8 +378,7 @@ describe("waiting seats", () => {
 
   it("CLAIM_SLOT releases the customer's seat", () => {
     const simState = withSeats({
-      occupiedTellerSlots: new Set(),  // teller 0 now free
-      occupiedSeats:       new Set([1]),
+      occupancy: occ({ seat: [1] }), // teller 0 now free, customer holds seat 1
     });
     const char = makeWaitingChar({ seatId: 1, seatedAt: true });
     const cmd = evaluateCharacter(char, simState, makePolicy());
@@ -388,174 +386,108 @@ describe("waiting seats", () => {
     const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
     expect(updatedChar.seatId).toBeNull();
     expect(updatedChar.seatedAt).toBe(false);
-    expect(stateDeltas.occupiedSeats.has(1)).toBe(false);
+    expect(stateDeltas.occupancy.seat.has(1)).toBe(false);
   });
 
   it("WALKOUT releases the customer's seat", () => {
-    const simState = withSeats({ occupiedSeats: new Set([2]) });
+    const simState = withSeats({ occupancy: occ({ teller: [0, 1], seat: [2] }) });
     const char = makeWaitingChar({ seatId: 2, seatedAt: true });
     const cmd = { type: "WALKOUT", charId: char.id };
     const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
     expect(updatedChar.state).toBe("fleeing");
     expect(updatedChar.seatId).toBeNull();
-    expect(stateDeltas.occupiedSeats.has(2)).toBe(false);
+    expect(stateDeltas.occupancy.seat.has(2)).toBe(false);
   });
 
   it("no seat claim when all seats occupied — falls through to frustration", () => {
-    const simState = withSeats({ occupiedSeats: new Set([0, 1, 2]) });
+    const simState = withSeats({ occupancy: occ({ teller: [0, 1], seat: [0, 1, 2] }) });
     const char = makeWaitingChar();
     const cmd = evaluateCharacter(char, simState, makePolicy());
     expect(cmd.type).toBe("UPDATE_FRUSTRATION");
   });
 });
 
-// ─── LOBBY OVERFLOW ──────────────────────────────────────────────────────────
-// When teller and seat allocators are both exhausted, waiting customers should
-// each claim a unique lobby tile rather than stacking on one spot. This is the
-// "no walking through each other" guarantee (Shape B in ROADMAP).
+// ─── STANDING SPOTS ──────────────────────────────────────────────────────────
+// When teller and seat allocators are both exhausted, waiting customers hold
+// unique standing spots computed from arrival order (queue slots first, then
+// lobby tiles) — no claims, so nothing can leak when they leave. This replaced
+// the CLAIM_LOBBY allocator (Shape B); the positions are pure layout.
 
-describe("lobby overflow positions", () => {
+describe("standing spots", () => {
   function makeWaitingChar(overrides = {}) {
     return {
       id: 50, role: "customer", state: "waiting",
-      gx: 3.5, gy: 4.0, frustration: 0.5, baseAnger: 0,
-      seatId: null, seatedAt: false, lobbyId: null,
+      gx: 9.0, gy: 9.0, frustration: 0.5, baseAnger: 0,
+      seatId: null, seatedAt: false,
       ...overrides,
     };
   }
 
-  function withLobby(overrides = {}) {
-    return makeSimState({
-      occupiedTellerSlots: new Set([0, 1]),                  // teller full
-      seatPositions:       [{ gx: 1.5, gy: 3.5 }],
-      occupiedSeats:       new Set([0]),                     // seat full
-      lobbyPositions: [
-        { gx: 3.5, gy: 5.0 },
-        { gx: 3.1, gy: 5.2 },
-        { gx: 3.9, gy: 5.2 },
-      ],
-      occupiedLobby: new Set(),
-      ...overrides,
-    });
+  function withStanders(standerIds, overrides = {}) {
+    const chars = standerIds.map(id => makeWaitingChar({ id }));
+    return {
+      state: makeSimState({
+        occupancy:     occ({ teller: [0, 1], seat: [0] }), // teller + seat full
+        seatPositions: [{ gx: 1.5, gy: 3.5 }],
+        lobbyPositions: [
+          { gx: 3.5, gy: 5.0 },
+          { gx: 3.1, gy: 5.2 },
+          { gx: 3.9, gy: 5.2 },
+        ],
+        chars,
+        ...overrides,
+      }),
+      chars,
+    };
   }
 
-  it("claims a lobby tile when no teller and no seat is available", () => {
-    const simState = withLobby();
-    const char    = makeWaitingChar();
-    const cmd     = evaluateCharacter(char, simState, makePolicy());
-    expect(cmd.type).toBe("CLAIM_LOBBY");
-    expect(cmd.lobbyId).toBe(0);
-  });
-
-  it("CLAIM_LOBBY marks the lobby occupied and sets lobbyId on customer", () => {
-    const simState = withLobby();
-    const char    = makeWaitingChar();
-    const cmd     = evaluateCharacter(char, simState, makePolicy());
-    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
-    expect(updatedChar.lobbyId).toBe(0);
-    expect(stateDeltas.occupiedLobby.has(0)).toBe(true);
-  });
-
-  it("two customers cannot claim the same lobby tile", () => {
-    const simState = withLobby();
-    const a = makeWaitingChar({ id: 51 });
-    const cmdA = evaluateCharacter(a, simState, makePolicy());
-    const resultA = applyCommand(cmdA, a, simState);
-    // Apply the first claim's delta before evaluating the second customer
-    simState.occupiedLobby = resultA.stateDeltas.occupiedLobby;
-
-    const b = makeWaitingChar({ id: 52 });
-    const cmdB = evaluateCharacter(b, simState, makePolicy());
-    expect(cmdB.type).toBe("CLAIM_LOBBY");
-    expect(cmdB.lobbyId).not.toBe(cmdA.lobbyId);
-  });
-
-  it("customer with claimed lobby walks toward the tile", () => {
-    const simState = withLobby({ occupiedLobby: new Set([0]) });
-    const char    = makeWaitingChar({ lobbyId: 0, gx: 3.5, gy: 4.0 });
-    const cmd     = evaluateCharacter(char, simState, makePolicy());
+  it("a stander away from their spot walks toward it", () => {
+    const { state, chars } = withStanders([50]);
+    const cmd = evaluateCharacter(chars[0], state, makePolicy());
     expect(cmd.type).toBe("MOVE");
-    expect(cmd.target).toEqual(simState.lobbyPositions[0]);
+    // First (only) stander gets the first spot — queue slot 0
+    expect(cmd.target).toEqual(state.queueSlots[0]);
   });
 
-  it("seated customer keeps no lobby claim (seat is strictly preferred)", () => {
-    // Seat available → customer should claim seat, never lobby.
-    const simState = withLobby({ occupiedSeats: new Set() });
-    const char    = makeWaitingChar();
-    const cmd     = evaluateCharacter(char, simState, makePolicy());
-    expect(cmd.type).toBe("CLAIM_SEAT");
+  it("standers get distinct spots by arrival order", () => {
+    const { state, chars } = withStanders([51, 52, 53]);
+    const targets = chars.map(c => evaluateCharacter(c, state, makePolicy()).target);
+    expect(targets[0]).toEqual(state.queueSlots[0]);
+    expect(targets[1]).toEqual(state.queueSlots[1]);
+    expect(targets[2]).toEqual(state.lobbyPositions[0]); // queue slots exhausted → lobby tiles
+    expect(new Set(targets.map(t => `${t.gx},${t.gy}`)).size).toBe(3);
   });
 
-  it("CLAIM_SEAT from lobby releases the lobby tile", () => {
-    // Customer holds lobby; seat opens up; they should release lobby and claim seat.
-    const simState = withLobby({
-      occupiedSeats: new Set(),         // seat free
-      occupiedLobby: new Set([1]),      // customer holds lobby 1
-    });
-    const char = makeWaitingChar({ lobbyId: 1 });
-    const cmd  = evaluateCharacter(char, simState, makePolicy());
-    expect(cmd.type).toBe("CLAIM_SEAT");
-    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
-    expect(updatedChar.lobbyId).toBeNull();
-    expect(stateDeltas.occupiedLobby.has(1)).toBe(false);
+  it("when an earlier stander leaves, the line shuffles forward", () => {
+    const { state } = withStanders([51, 52]);
+    const second = state.chars[1];
+    // With 51 present, 52 holds spot 1
+    expect(evaluateCharacter(second, state, makePolicy()).target).toEqual(state.queueSlots[1]);
+    // 51 gets served/leaves → 52 becomes the front of the line
+    state.chars = state.chars.filter(c => c.id !== 51);
+    expect(evaluateCharacter(second, state, makePolicy()).target).toEqual(state.queueSlots[0]);
   });
 
-  it("CLAIM_SLOT releases the customer's lobby tile", () => {
-    const simState = withLobby({
-      occupiedTellerSlots: new Set(),   // teller free
-      occupiedLobby:       new Set([1]),
-    });
-    const char = makeWaitingChar({ lobbyId: 1 });
-    const cmd  = evaluateCharacter(char, simState, makePolicy());
-    expect(cmd.type).toBe("CLAIM_SLOT");
-    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
-    expect(updatedChar.lobbyId).toBeNull();
-    expect(stateDeltas.occupiedLobby.has(1)).toBe(false);
-  });
-
-  it("WALKOUT releases the customer's lobby tile", () => {
-    const simState = withLobby({ occupiedLobby: new Set([2]) });
-    const char = makeWaitingChar({ lobbyId: 2 });
-    const cmd  = { type: "WALKOUT", charId: char.id };
-    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
-    expect(updatedChar.state).toBe("fleeing");
-    expect(updatedChar.lobbyId).toBeNull();
-    expect(stateDeltas.occupiedLobby.has(2)).toBe(false);
-  });
-
-  it("FLEE releases the customer's lobby tile", () => {
-    const simState = withLobby({ occupiedLobby: new Set([0]) });
-    const char = makeWaitingChar({ lobbyId: 0 });
-    const cmd  = { type: "FLEE", charId: char.id, reason: "robbery" };
-    const { updatedChar, stateDeltas } = applyCommand(cmd, char, simState);
-    expect(updatedChar.lobbyId).toBeNull();
-    expect(stateDeltas.occupiedLobby.has(0)).toBe(false);
-  });
-
-  it("all lobby tiles occupied — customer falls through to frustration accrual", () => {
-    const simState = withLobby({ occupiedLobby: new Set([0, 1, 2]) });
-    const char    = makeWaitingChar();
-    const cmd     = evaluateCharacter(char, simState, makePolicy());
+  it("a stander at their spot falls through to frustration accrual", () => {
+    const { state, chars } = withStanders([50]);
+    const atSpot = { ...chars[0], gx: state.queueSlots[0].gx, gy: state.queueSlots[0].gy };
+    state.chars = [atSpot];
+    const cmd = evaluateCharacter(atSpot, state, makePolicy());
     expect(cmd.type).toBe("UPDATE_FRUSTRATION");
   });
 
-  it("eight customers each get a unique lobby tile when seats + queue are saturated", () => {
-    // The rush-spawn worst case: 8 customers arrive at once with nowhere to sit
-    // and nowhere to be served. Each must get a unique standing tile.
-    const simState = withLobby({
-      lobbyPositions: Array.from({ length: 10 }, (_, i) => ({ gx: i, gy: 5 })),
-    });
-    const claimedIds = new Set();
-    for (let i = 0; i < 8; i++) {
-      const char = makeWaitingChar({ id: 60 + i });
-      const cmd  = evaluateCharacter(char, simState, makePolicy());
-      expect(cmd.type).toBe("CLAIM_LOBBY");
-      const { stateDeltas } = applyCommand(cmd, char, simState);
-      simState.occupiedLobby = stateDeltas.occupiedLobby;
-      expect(claimedIds.has(cmd.lobbyId)).toBe(false);
-      claimedIds.add(cmd.lobbyId);
-    }
-    expect(claimedIds.size).toBe(8);
+  it("a free seat is strictly preferred over a standing spot", () => {
+    const { state, chars } = withStanders([50], { occupancy: occ({ teller: [0, 1] }) });
+    const cmd = evaluateCharacter(chars[0], state, makePolicy());
+    expect(cmd.type).toBe("CLAIM_SEAT");
+  });
+
+  it("event characters are excluded from the standing order", () => {
+    const { state } = withStanders([51, 52]);
+    // A wandering inspector in the chars list must not shift customer spots
+    state.chars = [{ id: 1, role: "inspector", state: "waiting" }, ...state.chars];
+    const second = state.chars[2];
+    expect(evaluateCharacter(second, state, makePolicy()).target).toEqual(state.queueSlots[1]);
   });
 });
 
@@ -607,13 +539,10 @@ describe("multi-tick rush — all 3 default seats fill correctly", () => {
       loanDeskPos:         LOAN_DESK_POS,
       loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
       exitPos:             EXIT_POS,
-      occupiedTellerSlots: new Set(),
-      loanDeskOccupied:    false,
+      occupancy:           occ(),
       activeTellers:       new Set(),
       seatPositions:       SEAT_POSITIONS,
-      occupiedSeats:       new Set(),
       lobbyPositions:      [],
-      occupiedLobby:       new Set(),
       served:              0,
       deposited:           0,
       loans:               0,
@@ -666,10 +595,10 @@ describe("multi-tick rush — all 3 default seats fill correctly", () => {
     expect(simState.walkouts).toBe(0);
 
     // All three seats claimed
-    expect(simState.occupiedSeats.size).toBe(3);
-    expect(simState.occupiedSeats.has(0)).toBe(true);
-    expect(simState.occupiedSeats.has(1)).toBe(true);
-    expect(simState.occupiedSeats.has(2)).toBe(true);
+    expect(simState.occupancy.seat.size).toBe(3);
+    expect(simState.occupancy.seat.has(0)).toBe(true);
+    expect(simState.occupancy.seat.has(1)).toBe(true);
+    expect(simState.occupancy.seat.has(2)).toBe(true);
 
     // All three customers actually arrived (seatedAt=true), with unique seatIds
     const seated = simState.chars.filter(c => c.seatedAt);
@@ -734,9 +663,9 @@ describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => 
   const LOAN_DESK_POS        = {gx:2.2, gy:2.4};
   const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
 
-  // 2 tellers, both already busy serving (occupiedTellerSlots full) — the real
+  // 2 tellers, both already busy serving (teller occupancy full) — the real
   // mid-rush condition. findFreeSlot returns null, so every arrival must wait,
-  // then upgrade to a seat (3 available) or a lobby tile (5 overflow).
+  // then upgrade to a seat (3 available) or a unique standing spot.
   function rushState() {
     return {
       numTellers:          2,
@@ -747,13 +676,10 @@ describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => 
       loanDeskPos:         LOAN_DESK_POS,
       loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
       exitPos:             EXIT_POS,
-      occupiedTellerSlots: new Set([0, 1]),
-      loanDeskOccupied:    false,
+      occupancy:           occ({ teller: [0, 1] }),
       activeTellers:       new Set([0, 1]),
       seatPositions:       SEAT_POSITIONS,
-      occupiedSeats:       new Set(),
       lobbyPositions:      LOBBY_POSITIONS,
-      occupiedLobby:       new Set(),
       served:              0,
       deposited:           0,
       loans:               0,
@@ -807,19 +733,25 @@ describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => 
     expect(simState.walkouts).toBe(0);
 
     // All 3 seats claimed, by distinct customers who actually arrived.
-    expect(simState.occupiedSeats.size).toBe(3);
-    expect(simState.occupiedSeats.has(0)).toBe(true);
-    expect(simState.occupiedSeats.has(1)).toBe(true);
-    expect(simState.occupiedSeats.has(2)).toBe(true);
+    expect(simState.occupancy.seat.size).toBe(3);
+    expect(simState.occupancy.seat.has(0)).toBe(true);
+    expect(simState.occupancy.seat.has(1)).toBe(true);
+    expect(simState.occupancy.seat.has(2)).toBe(true);
 
     const seated = simState.chars.filter(c => c.seatedAt);
     expect(seated.length).toBe(3);
     expect(new Set(seated.map(c => c.seatId)).size).toBe(3);
 
-    // The 5 unseated waiters spread across unique lobby tiles, never stacking.
-    const lobbied = simState.chars.filter(c => c.lobbyId != null && !c.seatedAt);
-    expect(lobbied.length).toBe(5);
-    expect(new Set(lobbied.map(c => c.lobbyId)).size).toBe(5);
+    // The 5 unseated waiters hold 5 distinct standing spots — either already
+    // there (UPDATE_FRUSTRATION) or walking toward one (MOVE target).
+    const standers = simState.chars.filter(c => c.state === "waiting" && !c.seatedAt && c.seatId == null);
+    expect(standers.length).toBe(5);
+    const spots = standers.map(c => {
+      const cmd = evaluateCharacter(c, simState, policy);
+      const p = cmd.type === "MOVE" ? cmd.target : { gx: c.gx, gy: c.gy };
+      return `${Math.round(p.gx * 10)},${Math.round(p.gy * 10)}`;
+    });
+    expect(new Set(spots).size).toBe(5);
 
     // Seats fill well before any lobby stander could approach the walkout
     // threshold (~264 ticks) — generous bound guards against a regression that

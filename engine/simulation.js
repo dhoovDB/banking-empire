@@ -103,12 +103,13 @@ export function createDaySimState({ fin, staff, fac, setupCost = 0, dayStart = 0
     managerPos:          MGR_POS,
     loanDeskPos:         LOAN_DESK_POS,
     loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
-    occupiedTellerSlots: new Set(),
-    loanDeskOccupied:    false,
+    // One allocator for every claimable spot. Kinds: teller (by slot index),
+    // loanDesk (spot 0 today; becomes per-desk indices when multi-desk lands),
+    // seat (by seat index). Standing positions are NOT claimed — they're
+    // computed from waiting order (see standingSpotFor).
+    occupancy:           { teller: new Set(), loanDesk: new Set(), seat: new Set() },
     seatPositions:       SEAT_POSITIONS.slice(0, fac.waitingSeats),
-    occupiedSeats:       new Set(),
     lobbyPositions:      LOBBY_POSITIONS,
-    occupiedLobby:       new Set(),
     inspectorDistracted: false,
     clickedCharIds:      new Set(),
     pendingRushSpawns:   0,
@@ -290,7 +291,7 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "waiting") {
-    // Priority 1: a teller/loan slot opened up — go serve. Releases seat + lobby too.
+    // Priority 1: a teller/loan slot opened up — go serve. Releases held spots.
     if (activeEvent !== "outage") {
       const free = findFreeSlot(char, simState);
       if (free) return { type: "CLAIM_SLOT", charId: char.id, ...free };
@@ -298,9 +299,8 @@ export function evaluateCharacter(char, simState, policy) {
     // Priority 2: robbery flee.
     if (activeEvent === "robbery" && randomFloat() < beh.robberyFleeChance)
       return { type: "FLEE", charId: char.id, reason: "robbery" };
-    // Priority 3: claim a free seat if standing. A customer holding a lobby
-    // tile is still eligible — seats are strictly better (slower frustration),
-    // and CLAIM_SEAT releases the lobby tile so the resource is freed.
+    // Priority 3: claim a free seat if standing — seats are strictly better
+    // (slower frustration growth).
     if (char.seatId == null && simState.seatPositions && simState.seatPositions.length > 0) {
       const seatId = findFreeSeat(simState);
       if (seatId !== null) return { type: "CLAIM_SEAT", charId: char.id, seatId };
@@ -312,23 +312,20 @@ export function evaluateCharacter(char, simState, policy) {
       if (isNear(char, seatPos)) return { type: "ARRIVE_AT_SEAT", charId: char.id };
       return { type: "MOVE", charId: char.id, target: seatPos, speed: SPEEDS.customerWalk };
     }
-    // Priority 5: claim a unique lobby tile if standing without one. This is
-    // what stops bunching when seats + queue are full — each waiter gets their
-    // own tile via the same discrete-claim pattern as seats. (Alternative:
-    // Shape A per-tick collision rule — see ROADMAP. We chose the discrete
-    // allocator because it matches the architecture and avoids deadlocks.)
-    if (char.lobbyId == null && simState.lobbyPositions && simState.lobbyPositions.length > 0) {
-      const lobbyId = findFreeLobby(simState);
-      if (lobbyId !== null) return { type: "CLAIM_LOBBY", charId: char.id, lobbyId };
-    }
-    // Priority 6: walk to claimed lobby tile.
-    if (char.lobbyId != null) {
-      const lobbyPos = simState.lobbyPositions[char.lobbyId];
-      if (lobbyPos && !isNear(char, lobbyPos)) {
-        return { type: "MOVE", charId: char.id, target: lobbyPos, speed: SPEEDS.customerWalk };
+    // Priority 5: hold a unique standing spot, computed from waiting order —
+    // nothing to claim, nothing to leak. As earlier waiters get served, the
+    // whole line shuffles forward, which reads as a real queue. (Replaced the
+    // claimed-lobby-tile allocator: standing spots have no gameplay meaning,
+    // so they don't need claim/release state. The per-tick collision rule
+    // — Shape A — remains a ROADMAP alternative if transient overlap during
+    // walks becomes a playtest complaint.)
+    if (char.seatId == null) {
+      const spot = standingSpotFor(char, simState);
+      if (spot && !isNear(char, spot)) {
+        return { type: "MOVE", charId: char.id, target: spot, speed: SPEEDS.customerWalk };
       }
     }
-    // Priority 7: accrue frustration (slower if seated; faster during rush).
+    // Priority 6: accrue frustration (slower if seated; faster during rush).
     const rushMult   = activeEvent === "rush" ? (beh.rushFrustrationMultiplier || 1) : 1;
     const seatedMult = char.seatedAt ? (beh.seatedFrustrationMultiplier ?? 1) : 1;
     const newFrust   = Math.min(1, char.frustration + frustDelta * rushMult * seatedMult + (char.baseAnger || 0) * 0.002);
@@ -339,13 +336,9 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "advancing") {
-    // Loan customers route around the left end of the teller counter — they hit
-    // the bypass waypoint first, then continue to the loan desk.
-    if (char.nextWaypoint)
-      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, SPEEDS.customerAdvance);
     const target = char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex];
     if (!target) return { type: "NOOP", charId: char.id };
-    return walkOrArrive(char, target, {
+    return viaPath(char, target, {
       type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
       hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0),
     }, SPEEDS.customerAdvance);
@@ -361,10 +354,7 @@ export function evaluateCharacter(char, simState, policy) {
 
   if (char.state === "leaving" || char.state === "fleeing") {
     const exitSpeed = char.state === "fleeing" ? SPEEDS.customerFlee : SPEEDS.customerWalk;
-    // Loan customers retrace the bypass waypoint on the way out.
-    if (char.nextWaypoint)
-      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, exitSpeed);
-    return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, exitSpeed);
+    return viaPath(char, exitPos, { type: "EXIT", charId: char.id }, exitSpeed);
   }
 
   return { type: "NOOP", charId: char.id };
@@ -378,10 +368,12 @@ export function applyCommand(command, char, simState) {
     case "JOIN_WAIT":
       return { updatedChar: { ...char, state: "waiting", isMoving: false }, stateDeltas: {} };
     case "CLAIM_SLOT": {
-      const newOccupied = new Set(simState.occupiedTellerSlots);
-      if (!command.useLoanDesk) newOccupied.add(command.tellerIndex);
-      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
-      const releasedLobby = releaseLobbyIfHeld(simState, char.lobbyId);
+      // Release whatever the customer holds (a seat, usually), then claim
+      // the service spot they're heading to.
+      const released = releaseHeldSpots(simState.occupancy, char);
+      const occupancy = command.useLoanDesk
+        ? claimSpot(released, "loanDesk", 0)
+        : claimSpot(released, "teller", command.tellerIndex);
       return {
         updatedChar: {
           ...char,
@@ -389,39 +381,19 @@ export function applyCommand(command, char, simState) {
           tellerIndex: command.tellerIndex,
           useLoanDesk: command.useLoanDesk || false,
           isMoving: true,
-          nextWaypoint: command.useLoanDesk ? simState.loanBypassWaypoint : null,
+          // Loan customers route around the left end of the teller counter.
+          path: command.useLoanDesk ? [simState.loanBypassWaypoint] : [],
           seatId: null,
           seatedAt: false,
-          lobbyId: null,
         },
-        stateDeltas: {
-          occupiedTellerSlots: newOccupied,
-          loanDeskOccupied:    command.useLoanDesk ? true : simState.loanDeskOccupied,
-          ...(releasedSeats && { occupiedSeats: releasedSeats }),
-          ...(releasedLobby && { occupiedLobby: releasedLobby }),
-        },
+        stateDeltas: { occupancy },
       };
     }
-    case "CLAIM_SEAT": {
-      const newOccupiedSeats = new Set(simState.occupiedSeats || []);
-      newOccupiedSeats.add(command.seatId);
-      const releasedLobby = releaseLobbyIfHeld(simState, char.lobbyId);
+    case "CLAIM_SEAT":
       return {
-        updatedChar: { ...char, seatId: command.seatId, seatedAt: false, isMoving: true, lobbyId: null },
-        stateDeltas: {
-          occupiedSeats: newOccupiedSeats,
-          ...(releasedLobby && { occupiedLobby: releasedLobby }),
-        },
+        updatedChar: { ...char, seatId: command.seatId, seatedAt: false, isMoving: true },
+        stateDeltas: { occupancy: claimSpot(simState.occupancy, "seat", command.seatId) },
       };
-    }
-    case "CLAIM_LOBBY": {
-      const newOccupiedLobby = new Set(simState.occupiedLobby || []);
-      newOccupiedLobby.add(command.lobbyId);
-      return {
-        updatedChar: { ...char, lobbyId: command.lobbyId, isMoving: true },
-        stateDeltas: { occupiedLobby: newOccupiedLobby },
-      };
-    }
     case "ARRIVE_AT_SEAT":
       return { updatedChar: { ...char, seatedAt: true, isMoving: false }, stateDeltas: {} };
     case "UPDATE_FRUSTRATION":
@@ -430,31 +402,26 @@ export function applyCommand(command, char, simState) {
     case "FLEE": {
       // Same shape: customer abandons the bank. WALKOUT = frustration-driven
       // (angry, no bubble). FLEE = external trigger like a robbery (worried,
-      // help bubble). Both release every claim and bump the walkouts counter.
+      // help bubble). Both release every held spot and bump the walkouts counter.
       const isFlee = command.type === "FLEE";
-      const releasedSeats = releaseSeatIfHeld(simState, char.seatId);
-      const releasedLobby = releaseLobbyIfHeld(simState, char.lobbyId);
       return {
         updatedChar: {
           ...char,
           state: "fleeing", isMoving: true,
-          seatId: null, seatedAt: false, lobbyId: null,
+          seatId: null, seatedAt: false, tellerIndex: null, useLoanDesk: false,
           emotion: isFlee ? "worried" : "angry",
           bubble:      isFlee && command.reason === "robbery" ? "Help!" : null,
           bubbleTimer: isFlee && command.reason === "robbery" ? 1300   : 0,
         },
         stateDeltas: {
-          walkouts: simState.walkouts + 1,
-          ...(releasedSeats && { occupiedSeats: releasedSeats }),
-          ...(releasedLobby && { occupiedLobby: releasedLobby }),
+          walkouts:  simState.walkouts + 1,
+          occupancy: releaseHeldSpots(simState.occupancy, char),
         },
       };
     }
     case "START_SERVICE":
       return { updatedChar: { ...char, state: "served", progress: 0, emotion: "happy", isMoving: false }, stateDeltas: { activeTellers: new Set([...simState.activeTellers, command.tellerIndex]) } };
-    case "COMPLETE_SERVICE": {
-      const released = new Set(simState.occupiedTellerSlots);
-      if (char.tellerIndex !== undefined && char.tellerIndex >= 0) released.delete(char.tellerIndex);
+    case "COMPLETE_SERVICE":
       return {
         updatedChar: {
           ...char,
@@ -462,18 +429,18 @@ export function applyCommand(command, char, simState) {
           emotion: "happy",
           isMoving: true,
           // Loan customers retrace the bypass waypoint on the way out.
-          nextWaypoint: char.useLoanDesk ? simState.loanBypassWaypoint : null,
+          path: char.useLoanDesk ? [simState.loanBypassWaypoint] : [],
+          tellerIndex: null,
+          useLoanDesk: false,
         },
         stateDeltas: {
-          served:              simState.served + 1,
-          deposited:           simState.deposited + char.deposit,
-          loans:               command.hasLoan ? simState.loans + 1 : simState.loans,
-          whaleServed:         command.isWhale ? true : simState.whaleServed,
-          occupiedTellerSlots: released,
-          loanDeskOccupied:    char.useLoanDesk ? false : simState.loanDeskOccupied,
+          served:      simState.served + 1,
+          deposited:   simState.deposited + char.deposit,
+          loans:       command.hasLoan ? simState.loans + 1 : simState.loans,
+          whaleServed: command.isWhale ? true : simState.whaleServed,
+          occupancy:   releaseHeldSpots(simState.occupancy, char),
         },
       };
-    }
     case "SERVICE_PROGRESS":
       return { updatedChar: { ...char, progress: char.progress + SPEEDS.serviceProgress, isMoving: false }, stateDeltas: {} };
     case "ROBBER_START_VAULT":
@@ -495,8 +462,8 @@ export function applyCommand(command, char, simState) {
     }
     case "INSPECTOR_DONE":
       return { updatedChar: { ...char, state: "leaving", emotion: "happy", isMoving: true }, stateDeltas: { inspectionDone: true, activeEvent: null } };
-    case "CLEAR_WAYPOINT":
-      return { updatedChar: { ...char, nextWaypoint: null }, stateDeltas: {} };
+    case "PATH_NEXT":
+      return { updatedChar: { ...char, path: (char.path || []).slice(1) }, stateDeltas: {} };
     case "EXIT":
       return { updatedChar: { ...char, state: "exited" }, stateDeltas: {} };
 
@@ -634,55 +601,70 @@ export function calculateEraProgressDelta(dayResult, fin) {
        + sumIf(ERA_PROGRESS_RULES.losses, LOSS_PREDICATES);
 }
 
+// ─── SPOT ALLOCATOR ──────────────────────────────────────────────────────────
+// One claim/release mechanism for every claimable spot kind (teller, loanDesk,
+// seat). Commands release via releaseHeldSpots — which frees *everything* the
+// character holds — so a forgotten per-kind release can't leak a spot. This
+// replaced three parallel Set-pairs (occupiedTellerSlots / occupiedSeats /
+// occupiedLobby) that each exit path had to remember individually.
+
+function claimSpot(occupancy, kind, spotId) {
+  const next = { ...occupancy, [kind]: new Set(occupancy[kind]) };
+  next[kind].add(spotId);
+  return next;
+}
+
+// Which spots this character currently holds, derived from its own fields —
+// the character is the single source of truth for its claims.
+function heldSpots(char) {
+  const held = [];
+  if (char.seatId != null) held.push(["seat", char.seatId]);
+  if (char.useLoanDesk) held.push(["loanDesk", 0]);
+  else if (typeof char.tellerIndex === "number" && char.tellerIndex >= 0) held.push(["teller", char.tellerIndex]);
+  return held;
+}
+
+function releaseHeldSpots(occupancy, char) {
+  let next = occupancy;
+  for (const [kind, spotId] of heldSpots(char)) {
+    next = { ...next, [kind]: new Set(next[kind]) };
+    next[kind].delete(spotId);
+  }
+  return next;
+}
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function findFreeSlot(char, simState) {
-  const { numTellers, tellerSlots, occupiedTellerSlots, loanDeskOccupied, loanOfficers, loanDeskPos } = simState;
-  if (char.loanAmt > 0 && loanOfficers > 0 && !loanDeskOccupied && loanDeskPos)
+  const { numTellers, tellerSlots, occupancy, loanOfficers, loanDeskPos } = simState;
+  if (char.loanAmt > 0 && loanOfficers > 0 && !occupancy.loanDesk.has(0) && loanDeskPos)
     return { tellerIndex: -1, useLoanDesk: true };
   for (let i = 0; i < Math.min(numTellers, tellerSlots.length); i++) {
-    if (!occupiedTellerSlots.has(i)) return { tellerIndex: i, useLoanDesk: false };
+    if (!occupancy.teller.has(i)) return { tellerIndex: i, useLoanDesk: false };
   }
   return null;
 }
 
 function findFreeSeat(simState) {
   const seats = simState.seatPositions || [];
-  const occupied = simState.occupiedSeats || new Set();
   for (let i = 0; i < seats.length; i++) {
-    if (!occupied.has(i)) return i;
+    if (!simState.occupancy.seat.has(i)) return i;
   }
   return null;
 }
 
-// Lobby tile allocator — same shape as findFreeSeat. Each waiting customer
-// who has no seat and no teller slot claims a unique tile so they don't
-// stack on the same point. See LOBBY_POSITIONS in BankingEmpire.jsx for the
-// architectural choice (Shape B over Shape A).
-function findFreeLobby(simState) {
-  const lobby = simState.lobbyPositions || [];
-  const occupied = simState.occupiedLobby || new Set();
-  for (let i = 0; i < lobby.length; i++) {
-    if (!occupied.has(i)) return i;
-  }
-  return null;
-}
-
-// Returns a new Set with seatId removed, or null if no seat was held.
-// Callers spread `...(result && { occupiedSeats: result })` to skip the
-// stateDelta entirely when nothing changed.
-function releaseSeatIfHeld(simState, seatId) {
-  if (seatId == null) return null;
-  const next = new Set(simState.occupiedSeats || []);
-  next.delete(seatId);
-  return next;
-}
-
-// Same pattern as releaseSeatIfHeld. Null return means no delta needed.
-function releaseLobbyIfHeld(simState, lobbyId) {
-  if (lobbyId == null) return null;
-  const next = new Set(simState.occupiedLobby || []);
-  next.delete(lobbyId);
-  return next;
+// Deterministic standing position for a waiting customer with no seat: the
+// queue slots then the lobby tiles, assigned by arrival order among current
+// standers. Pure layout — no claims, so nothing to release when they leave.
+function standingSpotFor(char, simState) {
+  const spots = [...(simState.queueSlots || []), ...(simState.lobbyPositions || [])];
+  if (spots.length === 0) return null;
+  const standing = (simState.chars || [])
+    .filter(c => c.state === "waiting" && c.seatId == null
+                 && c.role !== "robber" && c.role !== "inspector")
+    .sort((a, b) => a.id - b.id);
+  const idx = standing.findIndex(c => c.id === char.id);
+  if (idx < 0) return null;
+  return spots[Math.min(idx, spots.length - 1)];
 }
 
 function isNear(char, target) {
@@ -698,6 +680,16 @@ function walkOrArrive(char, target, arriveCmd, speed) {
   return isNear(char, target)
     ? arriveCmd
     : { type: "MOVE", charId: char.id, target, speed };
+}
+
+// walkOrArrive through the character's pending path first. Consumes one
+// waypoint at a time (PATH_NEXT), then heads for the final target. Replaced
+// the single-use nextWaypoint/CLEAR_WAYPOINT machinery.
+function viaPath(char, target, arriveCmd, speed) {
+  const waypoint = char.path && char.path[0];
+  return waypoint
+    ? walkOrArrive(char, waypoint, { type: "PATH_NEXT", charId: char.id }, speed)
+    : walkOrArrive(char, target, arriveCmd, speed);
 }
 
 function moveToward(char, target, speed = 0.032) {

@@ -16,7 +16,7 @@ export const STAFF_DEFINITIONS = {
   tellers:      { label: "Teller",        hireCost:  5000, salary: 2500, max: 6,
                   tooltip: "Accepts deposits at the counter. More tellers → shorter queues, fewer walk-outs." },
   // reason: max is 1 because the engine models a single loan desk — every check
-  // is binary (loanOfficers > 0) against one loanDeskPos/loanDeskOccupied, so a
+  // is binary (loanOfficers > 0) against one loanDeskPos/occupancy.loanDesk spot, so a
   // 2nd or 3rd officer would cost $8k + $4k/qtr for zero throughput. v1 is honest
   // about serving one officer; multi-desk throughput scaling is a v2 item (see
   // ROADMAP "Multi-desk loan throughput"). Restore a higher max only alongside
