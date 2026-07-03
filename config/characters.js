@@ -68,6 +68,37 @@ export const ROLE_DEFAULTS = {
   },
 };
 
+// ─── MOVEMENT & PACING ────────────────────────────────────────────────────────
+// Grid units per 100ms tick. Calibrated for ISO_TW=192 (see 2026-05-02/03
+// speed rebalances in ROADMAP Completed).
+
+export const SPEEDS = {
+  customerEnter:   0.045, // door → queue slot
+  customerWalk:    0.040, // queue → seat/lobby, leaving
+  customerAdvance: 0.032, // queue → teller/loan desk (calmer pace)
+  customerFlee:    0.062, // robbery panic / walkout
+  robberEnter:     0.043,
+  robberLeave:     0.056,
+  inspector:       0.032, // all inspector movement
+  // Progress-per-tick while stationary:
+  serviceProgress: 0.007, // teller/loan service completion rate
+  robberyProgress: 0.005, // vault-cracking rate
+};
+
+// ─── CHARACTER CHATTER ────────────────────────────────────────────────────────
+// Idle speech-bubble lines. `ms` is how long the bubble stays up.
+
+export const CHATTER = {
+  idleChance:     0.003, // per-tick chance an idle character says something
+  waitingAngry:   { lines: ["Come ON!", "Hurry up!", "Seriously?!", "I'm late!"], ms: 1700 },
+  waitingNeutral: { lines: ["Good morning", "Need a loan...", "Hello!"],          ms: 1500 },
+  greeted:        { lines: ["Thanks!", "Appreciated.", "Oh, lovely!", "Cheers!"], ms: 1600 },
+  servedDeposit:  { ms: 1900 }, // line is dynamic: "+$<deposit>"
+  whaleGreeted:        { lines: ["Charmed, thank you."],  ms: 1800 },
+  robberDispatched:    { lines: ["Hands up!"],            ms: 1800 },
+  inspectorDistracted: { lines: ["Oh! Lovely décor."],    ms: 2000 },
+};
+
 // ─── EMOTION DISPLAY ──────────────────────────────────────────────────────────
 
 export const EMOTIONS = {

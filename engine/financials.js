@@ -1,4 +1,4 @@
-import { KPI_DEFINITIONS, POLICY_IMPACTS } from "../config/economy.js";
+import { KPI_DEFINITIONS, POLICY_IMPACTS, PL_RULES } from "../config/economy.js";
 import { STAFF_DEFINITIONS }              from "../config/characters.js";
 
 // ─── CORE BANKING CALCULATIONS ────────────────────────────────────────────────
@@ -78,10 +78,10 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
   const nplProvision    = calculateNPLProvision(fin.loans, fin.nplRatio);
   const salaries        = calculateRecurringSalaries(staff);
 
-  const depositGrowth  = Math.round(dayResult.deposited * 0.12);
-  const loanGrowth     = dayResult.loans * 14000;
+  const depositGrowth  = Math.round(dayResult.deposited * PL_RULES.depositGrowthRate);
+  const loanGrowth     = dayResult.loans * PL_RULES.loanGrowthPerLoan;
   const whaleBonus     = dayResult.whaleServed
-                         ? Math.round(dayResult.deposited * 0.07) : 0;
+                         ? Math.round(dayResult.deposited * PL_RULES.whaleBonusRate) : 0;
 
   const netIncome = interestIncome - interestExpense - nplProvision
                   - salaries + depositGrowth + whaleBonus
@@ -97,18 +97,21 @@ export function calculateQuarterlyPL(fin, policy, staff, dayResult) {
     cash:       fin.cash + netIncome + (dayResult.setupCost || 0),
     deposits:   fin.deposits + depositGrowth,
     loans:      fin.loans + loanGrowth,
-    equity:     fin.equity + Math.max(0, Math.round(netIncome * 0.55)),
-    nplRatio:   Math.max(0.01, Math.min(0.15,
-                  fin.nplRatio + (policy.lendingRate > 8 ? 0.005 : -0.001)
+    equity:     fin.equity + Math.max(0, Math.round(netIncome * PL_RULES.equityRetention)),
+    nplRatio:   Math.max(PL_RULES.nplDrift.min, Math.min(PL_RULES.nplDrift.max,
+                  fin.nplRatio + (policy.lendingRate > PL_RULES.nplDrift.highRateThreshold
+                    ? PL_RULES.nplDrift.up : PL_RULES.nplDrift.down)
                 )),
     quarter:    fin.quarter === 4 ? 1 : fin.quarter + 1,
     year:       fin.quarter === 4 ? fin.year + 1 : fin.year,
     reputation: Math.min(100, Math.max(0,
                   fin.reputation
-                  + (dayResult.served > 5 ? 3 : -1)
-                  - (dayResult.regulatoryFine > 0 ? 8 : 0)
-                  - (dayResult.walkouts > 3 ? 4 : 0)
-                  + (dayResult.whaleServed ? 5 : 0)
+                  + (dayResult.served > PL_RULES.reputation.servedThreshold
+                      ? PL_RULES.reputation.servedGain : PL_RULES.reputation.servedPenalty)
+                  + (dayResult.regulatoryFine > 0 ? PL_RULES.reputation.finePenalty : 0)
+                  + (dayResult.walkouts > PL_RULES.reputation.walkoutThreshold
+                      ? PL_RULES.reputation.walkoutPenalty : 0)
+                  + (dayResult.whaleServed ? PL_RULES.reputation.whaleGain : 0)
                 )),
   };
 

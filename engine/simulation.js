@@ -1,7 +1,11 @@
-import { CUSTOMER_BEHAVIOUR, POLICY_IMPACTS } from "../config/economy.js";
+import { CUSTOMER_BEHAVIOUR, POLICY_IMPACTS, SIM_TIMING, SPAWN_RULES } from "../config/economy.js";
 import { BRANCH_EVENTS }                      from "../config/events.js";
-import { SKIN_TONES, HAIR_COLORS, STAFF_OUTFITS, ROLE_DEFAULTS, EMOTIONS } from "../config/characters.js";
-import { ERA_PROGRESS_RULES }                 from "../config/progression.js";
+import { SKIN_TONES, HAIR_COLORS, STAFF_OUTFITS, ROLE_DEFAULTS, EMOTIONS, SPEEDS, CHATTER } from "../config/characters.js";
+import { ERA_PROGRESS_RULES, QUARTER_MILESTONES, FORCED_INSPECTION_TRIGGER_MS } from "../config/progression.js";
+import {
+  QUEUE_SLOTS, TELLER_SLOTS, SEAT_POSITIONS, LOBBY_POSITIONS,
+  EXIT_POS, VAULT_POS, MGR_POS, LOAN_DESK_POS, LOAN_BYPASS_WAYPOINT,
+} from "../config/layout.js";
 
 // ─── RANDOM UTILITIES ─────────────────────────────────────────────────────────
 // All randomness flows through here. Swap for seeded version to enable replays.
@@ -55,6 +59,187 @@ export function createCustomer(id, queuePos, role = "customer") {
   };
 }
 
+// ─── DAY STATE FACTORY ────────────────────────────────────────────────────────
+// Builds the mutable per-day simulation state. Layout comes from config;
+// staffing and facilities from the committed setup. `dayStart` is injected so
+// the engine itself never reads the wall clock.
+export function createDaySimState({ fin, staff, fac, setupCost = 0, dayStart = 0 }) {
+  const events = buildEventSchedule(fin.era);
+
+  // Milestone quarters force an inspection on top of the random schedule.
+  const absQ      = (fin.year - 1) * 4 + fin.quarter;
+  const milestone = QUARTER_MILESTONES[absQ];
+  if (milestone?.forceInspection && randomFloat() < milestone.inspectionProb) {
+    events.push({ type: "inspection", triggerAt: FORCED_INSPECTION_TRIGGER_MS, done: false });
+  }
+
+  return {
+    chars:          [],
+    nextId:         0,
+    dayStart,
+    served:         0,
+    deposited:      0,
+    loans:          0,
+    walkouts:       0,
+    robberyLoss:    0,
+    regulatoryFine: 0,
+    robberCaught:   false,
+    whaleServed:    false,
+    inspectionDone: false,
+    activeTellers:  new Set(),
+    activeEvent:    null,
+    eventClearAt:   null,
+    vaultOpen:      false,
+    vaultLevel:     fac.vaultLevel,
+    securityCount:  staff.security,
+    loanOfficers:   staff.loanOfficers,
+    numTellers:     staff.tellers,
+    events,
+    queueCounter:   0,
+    queueSlots:          QUEUE_SLOTS,
+    tellerSlots:         TELLER_SLOTS,
+    exitPos:             EXIT_POS,
+    vaultPos:            VAULT_POS,
+    managerPos:          MGR_POS,
+    loanDeskPos:         LOAN_DESK_POS,
+    loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
+    occupiedTellerSlots: new Set(),
+    loanDeskOccupied:    false,
+    seatPositions:       SEAT_POSITIONS.slice(0, fac.waitingSeats),
+    occupiedSeats:       new Set(),
+    lobbyPositions:      LOBBY_POSITIONS,
+    occupiedLobby:       new Set(),
+    inspectorDistracted: false,
+    clickedCharIds:      new Set(),
+    pendingRushSpawns:   0,
+    setupCost,
+    greets:              0,
+  };
+}
+
+// ─── DAY TICK ─────────────────────────────────────────────────────────────────
+// One 100ms simulation step. Owns every mutation of simState during the day:
+// event firing, banner expiry, spawning, character evaluate/apply, and ambient
+// bubbles. Returns effects for the boundary to render (coins, log lines) —
+// the engine never touches React or the canvas.
+export function tickSimulation(s, policy, elapsed) {
+  const effects = { dayOver: false, firedEvents: [], coins: [] };
+
+  if (elapsed >= SIM_TIMING.dayLengthMs) {
+    effects.dayOver = true;
+    return effects;
+  }
+
+  // 1. Fire scheduled events.
+  for (const ev of s.events) {
+    if (!ev.done && ev.triggerAt <= elapsed) {
+      ev.done = true;
+      fireEvent(ev.type, s, elapsed);
+      effects.firedEvents.push(ev.type);
+    }
+  }
+
+  // 2. Event expiry. A single elapsed-time check replaces the old setTimeout
+  // clears, which raced when two events overlapped. Commands that resolve an
+  // event early (ROBBER_CAUGHT, DISTRACT_INSPECTOR, …) null activeEvent
+  // themselves; a stale eventClearAt is harmless once activeEvent is null.
+  if (s.activeEvent && s.eventClearAt != null && elapsed >= s.eventClearAt) {
+    s.activeEvent  = null;
+    s.eventClearAt = null;
+  }
+
+  // 3. Rush wave drip — pending rush customers trickle in pre-annoyed.
+  if (s.pendingRushSpawns > 0 && randomFloat() < SPAWN_RULES.rushDripChance) {
+    spawnCustomerInto(s, SPAWN_RULES.rushSpawn);
+    s.pendingRushSpawns--;
+  }
+
+  // 4. Regular spawn, capped by how crowded the branch is.
+  const inBranch = s.chars.filter(c => c.state !== "exited").length;
+  const isRush   = s.activeEvent === "rush";
+  if (randomFloat() < (isRush ? SPAWN_RULES.rushChance : SPAWN_RULES.baseChance)
+      && inBranch < (isRush ? SPAWN_RULES.rushCap : SPAWN_RULES.baseCap)) {
+    spawnCustomerInto(s);
+  }
+
+  // 5. Evaluate and apply, one character at a time (deltas apply immediately
+  // so later characters in the same tick see claimed slots/seats).
+  const newChars = [];
+  for (const char of s.chars) {
+    const command = evaluateCharacter(char, s, policy);
+    const { updatedChar, stateDeltas } = applyCommand(command, char, s);
+    Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
+    if (command.type === "COMPLETE_SERVICE") {
+      effects.coins.push({ gx: char.gx, gy: char.gy, amount: char.deposit });
+    }
+    if (updatedChar.state !== "exited") newChars.push(updatedChar);
+  }
+  s.chars = newChars;
+
+  // 6. Ambient: interaction-window expiry, idle chatter, bubble countdown.
+  for (const c of s.chars) tickAmbient(c, elapsed);
+
+  return effects;
+}
+
+// Fires one branch event: applies resolveEvent's deltas, tags spawned
+// characters with their clickable window, and arms the banner expiry.
+function fireEvent(type, s, elapsed) {
+  const { spawnedChars, stateDeltas } = resolveEvent(type, s);
+  Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
+  spawnedChars.forEach(c => {
+    const windowMs = c.role === "whale"  ? BRANCH_EVENTS.whale.resolution.interactWindowMs
+                   : c.role === "robber" ? BRANCH_EVENTS.robbery.resolution.interactWindowMs
+                   : null;
+    if (windowMs != null) {
+      c.interactable   = true;
+      c.interactWindow = windowMs;
+      c.interactUntil  = elapsed + windowMs;
+    }
+    s.chars.push(c);
+    s.nextId++;
+  });
+  s.eventClearAt = elapsed + SIM_TIMING.eventBannerMs;
+}
+
+function spawnCustomerInto(s, mood = null) {
+  const c = createCustomer(s.nextId++, s.queueCounter % s.queueSlots.length);
+  s.chars.push(mood
+    ? { ...c, frustration: mood.frustration, baseAnger: mood.baseAnger, emotion: "angry" }
+    : c);
+  s.queueCounter++;
+}
+
+// Per-character ambient upkeep. Runs after evaluate/apply each tick; the only
+// other writer of character state is applyCommand.
+function tickAmbient(c, elapsed) {
+  if (c.interactable && c.interactUntil != null && elapsed > c.interactUntil) {
+    c.interactable = false;
+  }
+  if (!c.bubble && randomFloat() < CHATTER.idleChance) {
+    if (c.state === "served") {
+      c.bubble = `+$${c.deposit.toLocaleString()}`;
+      c.bubbleTimer = CHATTER.servedDeposit.ms;
+    } else if (c.state === "waiting" && c.emotion === "angry") {
+      c.bubble = pickRandom(CHATTER.waitingAngry.lines);
+      c.bubbleTimer = CHATTER.waitingAngry.ms;
+    } else if (c.state === "waiting" && c.emotion === "neutral") {
+      c.bubble = pickRandom(CHATTER.waitingNeutral.lines);
+      c.bubbleTimer = CHATTER.waitingNeutral.ms;
+    }
+  }
+  if (c.bubbleTimer > 0) c.bubbleTimer -= SIM_TIMING.tickMs;
+}
+
+// Maps a clicked character to its interaction command. The boundary calls
+// this, then routes the command through applyCommand like any other.
+export function interactionCommandFor(char) {
+  if (char.role === "whale")     return { type: "GREET_WHALE",         charId: char.id };
+  if (char.role === "robber")    return { type: "DISPATCH_SECURITY",   charId: char.id };
+  if (char.role === "inspector") return { type: "DISTRACT_INSPECTOR",  charId: char.id };
+  return { type: "GREET_CUSTOMER", charId: char.id };
+}
+
 // ─── CHARACTER EVALUATION (pure) ─────────────────────────────────────────────
 export function evaluateCharacter(char, simState, policy) {
   const { numTellers, activeEvent, loanOfficers, queueSlots, tellerSlots, exitPos, vaultPos } = simState;
@@ -63,32 +248,33 @@ export function evaluateCharacter(char, simState, policy) {
 
   // Robber
   if (char.role === "robber") {
+    const rob = BRANCH_EVENTS.robbery.resolution;
     if (char.state === "entering")
-      return walkOrArrive(char, vaultPos, { type: "ROBBER_START_VAULT", charId: char.id }, 0.043);
+      return walkOrArrive(char, vaultPos, { type: "ROBBER_START_VAULT", charId: char.id }, SPEEDS.robberEnter);
     if (char.state === "robbing") {
       if (char.progress >= 1) return { type: "ROBBER_ESCAPE", charId: char.id };
-      const baseChance = simState.securityCount > 0 ? 0.008 : 0;
-      const dispatchedChance = char.securityDispatched ? 0.05 : 0;
+      const baseChance = simState.securityCount > 0 ? rob.baseCatchChance : 0;
+      const dispatchedChance = char.securityDispatched ? rob.dispatchedCatchChance : 0;
       const caught = randomFloat() < (baseChance + dispatchedChance);
       if (caught) return { type: "ROBBER_CAUGHT", charId: char.id };
       return { type: "ROBBER_PROGRESS", charId: char.id };
     }
     if (char.state === "leaving")
-      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, 0.056);
+      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, SPEEDS.robberLeave);
   }
 
   // Inspector
   if (char.role === "inspector") {
     if (char.state === "entering")
-      return walkOrArrive(char, simState.managerPos, { type: "INSPECTOR_START", charId: char.id }, 0.032);
+      return walkOrArrive(char, simState.managerPos, { type: "INSPECTOR_START", charId: char.id }, SPEEDS.inspector);
     if (char.state === "inspecting") {
       const wanders = char.wanderTargets || [];
       const idx     = char.wanderIdx    || 0;
       if (idx >= wanders.length) return { type: "INSPECTOR_DONE", charId: char.id };
-      return walkOrArrive(char, wanders[idx].pos, { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id }, 0.032);
+      return walkOrArrive(char, wanders[idx].pos, { type: "INSPECTOR_WANDER_ARRIVE", charId: char.id }, SPEEDS.inspector);
     }
     if (char.state === "leaving")
-      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, 0.032);
+      return walkOrArrive(char, exitPos, { type: "EXIT", charId: char.id }, SPEEDS.inspector);
   }
 
   // Customer
@@ -96,7 +282,7 @@ export function evaluateCharacter(char, simState, policy) {
 
   if (char.state === "entering") {
     const slot = queueSlots[Math.min(char.queuePos, queueSlots.length - 1)];
-    if (!isNear(char, slot)) return { type: "MOVE", charId: char.id, target: slot, speed: 0.045 };
+    if (!isNear(char, slot)) return { type: "MOVE", charId: char.id, target: slot, speed: SPEEDS.customerEnter };
     const free = findFreeSlot(char, simState);
     return free
       ? { type: "CLAIM_SLOT", charId: char.id, ...free }
@@ -110,7 +296,7 @@ export function evaluateCharacter(char, simState, policy) {
       if (free) return { type: "CLAIM_SLOT", charId: char.id, ...free };
     }
     // Priority 2: robbery flee.
-    if (activeEvent === "robbery" && randomFloat() < 0.004)
+    if (activeEvent === "robbery" && randomFloat() < beh.robberyFleeChance)
       return { type: "FLEE", charId: char.id, reason: "robbery" };
     // Priority 3: claim a free seat if standing. A customer holding a lobby
     // tile is still eligible — seats are strictly better (slower frustration),
@@ -124,7 +310,7 @@ export function evaluateCharacter(char, simState, policy) {
       const seatPos = simState.seatPositions[char.seatId];
       if (!seatPos) return { type: "NOOP", charId: char.id };
       if (isNear(char, seatPos)) return { type: "ARRIVE_AT_SEAT", charId: char.id };
-      return { type: "MOVE", charId: char.id, target: seatPos, speed: 0.040 };
+      return { type: "MOVE", charId: char.id, target: seatPos, speed: SPEEDS.customerWalk };
     }
     // Priority 5: claim a unique lobby tile if standing without one. This is
     // what stops bunching when seats + queue are full — each waiter gets their
@@ -139,7 +325,7 @@ export function evaluateCharacter(char, simState, policy) {
     if (char.lobbyId != null) {
       const lobbyPos = simState.lobbyPositions[char.lobbyId];
       if (lobbyPos && !isNear(char, lobbyPos)) {
-        return { type: "MOVE", charId: char.id, target: lobbyPos, speed: 0.040 };
+        return { type: "MOVE", charId: char.id, target: lobbyPos, speed: SPEEDS.customerWalk };
       }
     }
     // Priority 7: accrue frustration (slower if seated; faster during rush).
@@ -156,13 +342,13 @@ export function evaluateCharacter(char, simState, policy) {
     // Loan customers route around the left end of the teller counter — they hit
     // the bypass waypoint first, then continue to the loan desk.
     if (char.nextWaypoint)
-      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, 0.032);
+      return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, SPEEDS.customerAdvance);
     const target = char.useLoanDesk ? simState.loanDeskPos : tellerSlots[char.tellerIndex];
     if (!target) return { type: "NOOP", charId: char.id };
     return walkOrArrive(char, target, {
       type: "START_SERVICE", charId: char.id, tellerIndex: char.tellerIndex,
       hasLoan: char.useLoanDesk || (char.loanAmt > 0 && loanOfficers > 0),
-    }, 0.032);
+    }, SPEEDS.customerAdvance);
   }
 
   if (char.state === "served") {
@@ -174,7 +360,7 @@ export function evaluateCharacter(char, simState, policy) {
   }
 
   if (char.state === "leaving" || char.state === "fleeing") {
-    const exitSpeed = char.state === "fleeing" ? 0.062 : 0.040;
+    const exitSpeed = char.state === "fleeing" ? SPEEDS.customerFlee : SPEEDS.customerWalk;
     // Loan customers retrace the bypass waypoint on the way out.
     if (char.nextWaypoint)
       return walkOrArrive(char, char.nextWaypoint, { type: "CLEAR_WAYPOINT", charId: char.id }, exitSpeed);
@@ -289,11 +475,11 @@ export function applyCommand(command, char, simState) {
       };
     }
     case "SERVICE_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.007, isMoving: false }, stateDeltas: {} };
+      return { updatedChar: { ...char, progress: char.progress + SPEEDS.serviceProgress, isMoving: false }, stateDeltas: {} };
     case "ROBBER_START_VAULT":
       return { updatedChar: { ...char, state: "robbing", progress: 0, isMoving: false }, stateDeltas: { vaultOpen: true } };
     case "ROBBER_PROGRESS":
-      return { updatedChar: { ...char, progress: char.progress + 0.005, isMoving: false }, stateDeltas: {} };
+      return { updatedChar: { ...char, progress: char.progress + SPEEDS.robberyProgress, isMoving: false }, stateDeltas: {} };
     case "ROBBER_ESCAPE": {
       const factor = typeof char.lossFactor === "number" ? char.lossFactor : 1;
       const loss = Math.round((BRANCH_EVENTS.robbery.resolution.baseLoss * factor) / (simState.vaultLevel || 1));
@@ -313,6 +499,63 @@ export function applyCommand(command, char, simState) {
       return { updatedChar: { ...char, nextWaypoint: null }, stateDeltas: {} };
     case "EXIT":
       return { updatedChar: { ...char, state: "exited" }, stateDeltas: {} };
+
+    // ── Player interactions (canvas clicks routed through the boundary) ──────
+    case "GREET_CUSTOMER": {
+      const beh         = CUSTOMER_BEHAVIOUR;
+      const frustration = Math.max(0, (char.frustration || 0) - beh.greetFrustrationRelief);
+      const baseAnger   = Math.max(0, (char.baseAnger   || 0) - beh.greetAngerRelief);
+      return {
+        updatedChar: {
+          ...char, frustration, baseAnger,
+          emotion:     frustration > 0.5 ? "neutral" : "happy",
+          bubble:      pickRandom(CHATTER.greeted.lines),
+          bubbleTimer: CHATTER.greeted.ms,
+        },
+        stateDeltas: { greets: (simState.greets || 0) + 1 },
+      };
+    }
+    case "GREET_WHALE": {
+      const res = BRANCH_EVENTS.whale.resolution;
+      return {
+        updatedChar: {
+          ...char,
+          interactable: false,
+          deposit:      Math.round(char.deposit * res.greetDepositBoost),
+          emotion:      "happy",
+          bubble:       pickRandom(CHATTER.whaleGreeted.lines),
+          bubbleTimer:  CHATTER.whaleGreeted.ms,
+        },
+        stateDeltas: {},
+      };
+    }
+    case "DISPATCH_SECURITY": {
+      const res = BRANCH_EVENTS.robbery.resolution;
+      return {
+        updatedChar: {
+          ...char,
+          securityDispatched: true,
+          interactable:       false,
+          lossFactor:         res.dispatchedLossFactor,
+          bubble:             pickRandom(CHATTER.robberDispatched.lines),
+          bubbleTimer:        CHATTER.robberDispatched.ms,
+        },
+        stateDeltas: {},
+      };
+    }
+    case "DISTRACT_INSPECTOR":
+      // Mirrors INSPECTOR_DONE's deltas — the old click path skipped
+      // activeEvent, which left the inspection banner hanging on screen.
+      return {
+        updatedChar: {
+          ...char,
+          state: "leaving", emotion: "happy", isMoving: true,
+          interactable: false,
+          bubble:       pickRandom(CHATTER.inspectorDistracted.lines),
+          bubbleTimer:  CHATTER.inspectorDistracted.ms,
+        },
+        stateDeltas: { inspectorDistracted: true, activeEvent: null },
+      };
     default:
       return { updatedChar: char, stateDeltas: {} };
   }
@@ -337,8 +580,9 @@ export function resolveEvent(type, simState) {
   const stateDeltas  = { activeEvent: type };
 
   if (type === "robbery") {
-    // Robber enters right door — sneaking in while customers use the left
-    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 4.0, gy: 5.9, bubble: "FREEZE!", bubbleTimer: 2400 });
+    // Robber enters right door — sneaking in while customers use the left.
+    // lossFactor defaults to 1 (full loss); DISPATCH_SECURITY lowers it.
+    spawnedChars.push({ ...createCustomer(simState.nextId, 0, "robber"), gx: 4.0, gy: 5.9, lossFactor: 1, bubble: "FREEZE!", bubbleTimer: 2400 });
   }
   if (type === "inspection") {
     const wanders = [
@@ -353,7 +597,7 @@ export function resolveEvent(type, simState) {
     });
   }
   if (type === "rush") {
-    stateDeltas.pendingRushSpawns = 8;
+    stateDeltas.pendingRushSpawns = BRANCH_EVENTS.rush.resolution.pendingSpawns;
   }
   if (type === "whale") {
     // VIP arrives through the right door

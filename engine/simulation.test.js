@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { evaluateCharacter, applyCommand, createCustomer } from "./simulation.js";
+import {
+  evaluateCharacter, applyCommand, createCustomer,
+  createDaySimState, tickSimulation, interactionCommandFor,
+} from "./simulation.js";
+import { BRANCH_EVENTS } from "../config/events.js";
+import { SIM_TIMING }    from "../config/economy.js";
 
 // Minimal simState for tests — only the fields evaluateCharacter/applyCommand need
 function makeSimState(overrides = {}) {
@@ -820,5 +825,128 @@ describe("multi-tick rush — real 8-customer replica fills all 3 seats", () => 
     // threshold (~264 ticks) — generous bound guards against a regression that
     // slows the seat path.
     expect(ticksUsed).toBeLessThan(300);
+  });
+});
+
+// ─── PLAYER INTERACTION COMMANDS ─────────────────────────────────────────────
+// Clicks route through applyCommand like every other mutation. These pin the
+// behaviors that used to live as direct mutations in BankingEmpire.jsx.
+
+describe("interaction commands", () => {
+  it("interactionCommandFor maps roles to commands", () => {
+    expect(interactionCommandFor({ id: 1, role: "whale" }).type).toBe("GREET_WHALE");
+    expect(interactionCommandFor({ id: 2, role: "robber" }).type).toBe("DISPATCH_SECURITY");
+    expect(interactionCommandFor({ id: 3, role: "inspector" }).type).toBe("DISTRACT_INSPECTOR");
+    expect(interactionCommandFor({ id: 4, role: "customer" }).type).toBe("GREET_CUSTOMER");
+  });
+
+  it("GREET_WHALE boosts the deposit by the config factor and consumes the click window", () => {
+    const s = makeSimState();
+    const whale = { id: 1, role: "whale", deposit: 500000, interactable: true, gx: 4, gy: 5 };
+    const { updatedChar } = applyCommand({ type: "GREET_WHALE", charId: 1 }, whale, s);
+    expect(updatedChar.deposit).toBe(Math.round(500000 * BRANCH_EVENTS.whale.resolution.greetDepositBoost));
+    expect(updatedChar.interactable).toBe(false);
+    expect(updatedChar.emotion).toBe("happy");
+  });
+
+  it("GREET_CUSTOMER clamps frustration and anger at zero", () => {
+    const s = makeSimState({ greets: 0 });
+    const calm = { id: 2, role: "customer", frustration: 0.2, baseAnger: 0.05, gx: 3, gy: 4 };
+    const { updatedChar, stateDeltas } = applyCommand({ type: "GREET_CUSTOMER", charId: 2 }, calm, s);
+    // Old click handler subtracted below zero (0.2 - 0.45 = -0.25) — locked out here.
+    expect(updatedChar.frustration).toBe(0);
+    expect(updatedChar.baseAnger).toBe(0);
+    expect(updatedChar.emotion).toBe("happy");
+    expect(stateDeltas.greets).toBe(1);
+  });
+
+  it("DISPATCH_SECURITY lowers the robbery loss via lossFactor", () => {
+    const s = makeSimState({ robberyLoss: 0, vaultLevel: 1 });
+    const robber = { id: 3, role: "robber", state: "robbing", progress: 1, lossFactor: 1, gx: 5, gy: 2 };
+
+    const dispatched = applyCommand({ type: "DISPATCH_SECURITY", charId: 3 }, robber, s).updatedChar;
+    expect(dispatched.lossFactor).toBe(BRANCH_EVENTS.robbery.resolution.dispatchedLossFactor);
+    expect(dispatched.securityDispatched).toBe(true);
+
+    // Escape with the dispatched factor vs the spawn default of 1
+    const base = BRANCH_EVENTS.robbery.resolution.baseLoss;
+    const fullLoss = applyCommand({ type: "ROBBER_ESCAPE", charId: 3 }, robber, s).stateDeltas.robberyLoss;
+    const cutLoss  = applyCommand({ type: "ROBBER_ESCAPE", charId: 3 }, dispatched, s).stateDeltas.robberyLoss;
+    expect(fullLoss).toBe(base);
+    expect(cutLoss).toBe(Math.round(base * BRANCH_EVENTS.robbery.resolution.dispatchedLossFactor));
+  });
+
+  it("DISTRACT_INSPECTOR clears the active event — the old click path left the banner hanging", () => {
+    const s = makeSimState({ activeEvent: "inspection", inspectorDistracted: false });
+    const inspector = { id: 4, role: "inspector", state: "inspecting", gx: 2, gy: 2 };
+    const { updatedChar, stateDeltas } = applyCommand({ type: "DISTRACT_INSPECTOR", charId: 4 }, inspector, s);
+    expect(updatedChar.state).toBe("leaving");
+    expect(stateDeltas.inspectorDistracted).toBe(true);
+    expect(stateDeltas.activeEvent).toBe(null);
+  });
+});
+
+// ─── DAY TICK ────────────────────────────────────────────────────────────────
+
+describe("tickSimulation", () => {
+  // Era-1 quarter with a deterministic schedule (no milestone at absQ=2,
+  // random schedule overwritten after construction).
+  function makeDayState(events) {
+    const s = createDaySimState({
+      fin:   { era: 1, year: 1, quarter: 2 },
+      staff: { tellers: 2, loanOfficers: 0, security: 0 },
+      fac:   { vaultLevel: 1, waitingSeats: 3 },
+    });
+    s.events = events;
+    return s;
+  }
+
+  it("ends the day at the configured length", () => {
+    const s = makeDayState([]);
+    expect(tickSimulation(s, makePolicy(), SIM_TIMING.dayLengthMs - 1).dayOver).toBe(false);
+    expect(tickSimulation(s, makePolicy(), SIM_TIMING.dayLengthMs).dayOver).toBe(true);
+  });
+
+  it("fires scheduled events once and reports them as effects", () => {
+    const s = makeDayState([{ type: "inspection", triggerAt: 1000, done: false }]);
+    const fx1 = tickSimulation(s, makePolicy(), 1000);
+    expect(fx1.firedEvents).toEqual(["inspection"]);
+    expect(s.activeEvent).toBe("inspection");
+    expect(s.chars.some(c => c.role === "inspector")).toBe(true);
+    // Next tick: already done, does not re-fire
+    const fx2 = tickSimulation(s, makePolicy(), 1100);
+    expect(fx2.firedEvents).toEqual([]);
+  });
+
+  it("overlapping events expire on elapsed time — the setTimeout race is gone", () => {
+    const s = makeDayState([
+      { type: "inspection", triggerAt: 1000, done: false },
+      { type: "rush",       triggerAt: 5000, done: false },
+    ]);
+    tickSimulation(s, makePolicy(), 1000);
+    expect(s.activeEvent).toBe("inspection");
+    tickSimulation(s, makePolicy(), 5000);
+    expect(s.activeEvent).toBe("rush");
+    // Inspection's original 12s window passing must NOT clear the rush…
+    tickSimulation(s, makePolicy(), 1000 + SIM_TIMING.eventBannerMs + 100);
+    expect(s.activeEvent).toBe("rush");
+    // …but the rush's own window does.
+    tickSimulation(s, makePolicy(), 5000 + SIM_TIMING.eventBannerMs);
+    expect(s.activeEvent).toBe(null);
+    expect(s.eventClearAt).toBe(null);
+  });
+
+  it("event characters get a click window that expires with sim time", () => {
+    // Robbery is era-2 content; the schedule is injected directly so the
+    // interaction tagging is exercised regardless of era gating.
+    const s = makeDayState([{ type: "robbery", triggerAt: 1000, done: false }]);
+    tickSimulation(s, makePolicy(), 1000);
+    const robber = s.chars.find(c => c.role === "robber");
+    expect(robber.interactable).toBe(true);
+    expect(robber.lossFactor).toBe(1); // spawn default — no NaN loss for un-clicked robbers
+    expect(robber.interactUntil).toBe(1000 + BRANCH_EVENTS.robbery.resolution.interactWindowMs);
+
+    tickSimulation(s, makePolicy(), robber.interactUntil + 200);
+    expect(s.chars.find(c => c.role === "robber").interactable).toBe(false);
   });
 });

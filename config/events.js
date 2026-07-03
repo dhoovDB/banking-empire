@@ -9,25 +9,39 @@ export const BRANCH_EVENTS = {
     eraRange:           [2, 4],
     triggerProbability: 0.25,
     timing:             { earliest: 20000, latest: 55000 },
-    resolution:         { baseLoss: 12000 },
+    resolution:         {
+      baseLoss:              12000,
+      // Player clicks the robber → security dispatched → loss multiplied by this.
+      dispatchedLossFactor:  0.4,
+      // Per-tick catch chances while the robber works the vault.
+      baseCatchChance:       0.008, // security staff on site
+      dispatchedCatchChance: 0.05,  // player dispatched security
+      interactWindowMs:      4000,  // how long the robber is clickable
+    },
   },
   inspection: {
     eraRange:           [1, 4],
     triggerProbability: 0.30,
     timing:             { earliest: 25000, latest: 60000 },
-    resolution:         {},
+    resolution:         {
+      fine:                2500, // charged if the inspection isn't handled
+      distractedFineFactor: 0.5, // player distracts the inspector → fine × this
+    },
   },
   rush: {
     eraRange:           [1, 4],
     triggerProbability: 0.35,
     timing:             { earliest: 15000, latest: 45000 },
-    resolution:         {},
+    resolution:         { pendingSpawns: 8 },
   },
   whale: {
     eraRange:           [2, 4],
     triggerProbability: 0.20,
     timing:             { earliest: 30000, latest: 65000 },
-    resolution:         {},
+    resolution:         {
+      greetDepositBoost: 1.2,  // player greets the whale → deposit × this
+      interactWindowMs:  6000, // how long the whale is clickable
+    },
   },
   outage: {
     eraRange:           [2, 4],

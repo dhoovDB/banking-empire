@@ -139,10 +139,57 @@ export const CUSTOMER_BEHAVIOUR = {
   walkoutProbability:       0.006,
   angryThreshold:           0.72,
   worriedThreshold:         0.42,
-  robberyFleeChance:        0.4,
+  // Per-tick chance a waiting customer flees during an active robbery.
+  robberyFleeChance:        0.004,
   depositRange:             { min: 1500,  max: 10000 },
   loanRange:                { min: 8000,  max: 50000 },
   loanApplicationChance:    0.4,
+  // Player greet (click a waiting customer): how much one greet calms them.
+  greetFrustrationRelief:   0.45,
+  greetAngerRelief:         0.15,
+};
+
+// ─── SIMULATION TIMING ────────────────────────────────────────────────────────
+export const SIM_TIMING = {
+  dayLengthMs:     75000, // one quarter = one 75-second branch day
+  tickMs:          100,
+  eventBannerMs:   12000, // how long an event stays "active" (banner + effects)
+  greetCooldownMs: 400,   // global click debounce on the canvas
+};
+
+// ─── CUSTOMER SPAWNING ────────────────────────────────────────────────────────
+export const SPAWN_RULES = {
+  baseChance:     0.042, // per-tick spawn probability, normal play
+  rushChance:     0.26,  // per-tick spawn probability while a rush is active
+  baseCap:        7,     // max characters in branch, normal play
+  rushCap:        18,    // max characters in branch during a rush
+  rushDripChance: 0.35,  // per-tick chance to release one pending rush spawn
+  // Rush arrivals come in pre-annoyed.
+  rushSpawn:      { frustration: 0.6, baseAnger: 0.45 },
+};
+
+// ─── QUARTERLY P&L RULES ──────────────────────────────────────────────────────
+// Multipliers used by engine/financials.js calculateQuarterlyPL.
+export const PL_RULES = {
+  // Fraction of the day's counter deposits that becomes lasting deposit-book
+  // growth (the rest is transactional flow, not new balances).
+  depositGrowthRate: 0.12,
+  // Loan-book growth per loan originated at the loan desk.
+  loanGrowthPerLoan: 14000,
+  // Serving the whale attracts follow-on deposits worth this fraction of the
+  // day's deposits.
+  whaleBonusRate:    0.07,
+  // Fraction of positive net income retained as equity.
+  equityRetention:   0.55,
+  // NPL ratio drift: predatory lending rates attract riskier borrowers.
+  nplDrift: { highRateThreshold: 8, up: 0.005, down: -0.001, min: 0.01, max: 0.15 },
+  // Quarterly reputation deltas.
+  reputation: {
+    servedThreshold: 5,  servedGain: 3, servedPenalty: -1,
+    finePenalty: -8,
+    walkoutThreshold: 3, walkoutPenalty: -4,
+    whaleGain: 5,
+  },
 };
 
 // ─── CONCENTRATION RISK ───────────────────────────────────────────────────────

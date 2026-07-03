@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { DEFAULT_FINANCIALS, DEFAULT_POLICY, POLICY_IMPACTS, CUSTOMER_BEHAVIOUR } from "./config/economy.js";
-import { DEFAULT_STAFF, DEFAULT_FACILITIES }                                        from "./config/characters.js";
-import { EVT_DISPLAY }                                                             from "./config/events.js";
-import { LOSS_CONDITIONS, QUARTER_MILESTONES }                                     from "./config/progression.js";
+import { DEFAULT_FINANCIALS, DEFAULT_POLICY, SIM_TIMING } from "./config/economy.js";
+import { DEFAULT_STAFF, DEFAULT_FACILITIES }              from "./config/characters.js";
+import { EVT_DISPLAY, BRANCH_EVENTS }                     from "./config/events.js";
+import { LOSS_CONDITIONS }                                from "./config/progression.js";
 import {
   calculateQuarterlyPL, calculateNIM, calculateCAR,
   calculateOneTimeCosts, isLiquidityBreached, checkLossConditions,
 } from "./engine/financials.js";
 import {
-  buildEventSchedule, resolveEvent,
-  evaluateCharacter, applyCommand,
-  calculateEraProgressDelta, createCustomer, createStaffMember,
-  randomFloat, randomInt,
+  createDaySimState, tickSimulation, interactionCommandFor, applyCommand,
+  calculateEraProgressDelta, createStaffMember,
 } from "./engine/simulation.js";
 import { renderFrame, CANVAS_W, CANVAS_H, toIso } from "./renderer/canvas.js";
 
@@ -41,68 +39,9 @@ import SetupScreen                                 from "./ui/SetupScreen.jsx";
 import SimScreen                                   from "./ui/SimScreen.jsx";
 import ReportScreen                                from "./ui/ReportScreen.jsx";
 
-// ─── LAYOUT CONSTANTS ────────────────────────────────────────────────────────
-// Grid is 6 wide × 5 deep (gx 1–6, gy 1–5). Spawn/exit row sits at gy=5.8 just outside.
-const QUEUE_SLOTS = [
-  {gx:3.5,gy:4.0},
-  {gx:3.1,gy:4.2},{gx:3.9,gy:4.2},
-  {gx:2.7,gy:4.4},{gx:3.5,gy:4.4},{gx:4.3,gy:4.4},
-  {gx:3.1,gy:4.6},{gx:3.9,gy:4.6},
-  {gx:2.7,gy:4.8},{gx:4.3,gy:4.8},
-];
-// Teller slots are where the *customer* stops to be served — in front of the
-// counter (gyFront=3.05), not inside it. The teller chibi is drawn behind the
-// counter via a fixed offset in renderer/canvas.js.
-const TELLER_SLOTS = [
-  {gx:2.4,gy:3.10},{gx:2.95,gy:3.10},{gx:3.5,gy:3.10},
-  {gx:4.05,gy:3.10},{gx:4.6,gy:3.10},{gx:5.15,gy:3.10},
-];
-const EXIT_POS      = {gx:3.5, gy:5.8}; // exit through entrance row
-const VAULT_POS     = {gx:5.0, gy:1.5};
-const MGR_POS       = {gx:1.2, gy:2.0};
-// Loan customer service position — in front of the desk drawing (which is centered at gy≈2.0).
-// The loan officer chibi draws behind the desk via a fixed offset in renderer/canvas.js.
-const LOAN_DESK_POS = {gx:2.2, gy:2.4};
-// Loan customers route around the left end of the teller counter via this
-// waypoint (left of counter at gx<2.4, in front of counter at gy>3.05).
-// Used on both advancing (queue → loan desk) and leaving (loan desk → exit).
-const LOAN_BYPASS_WAYPOINT = {gx:1.9, gy:3.5};
-// Waiting-seat tile positions. Engine claims seats by index; renderer draws a
-// chair at each. Era 1 ships 3 seats (DEFAULT_FACILITIES.waitingSeats); era 2+
-// can buy up to 10 via the SetupScreen stepper.
-//
-// Layout: bottom-left cluster, deliberately away from the teller approach
-// zone (gx 2.4+) and the queue triangle (gx 2.7–4.3). Earlier positions at
-// gy=3.50/3.85, gx=1.5–3.1 ran the chairs right up against the counter,
-// which made the seated chibis visually merge with the teller backstage.
-const SEAT_POSITIONS = [
-  // Front row — closer to the entrance
-  {gx:1.0, gy:3.90}, {gx:1.4, gy:3.90}, {gx:1.8, gy:3.90},
-  {gx:2.2, gy:3.90}, {gx:2.6, gy:3.90},
-  // Back row — same columns, one half-tile back
-  {gx:1.0, gy:4.25}, {gx:1.4, gy:4.25}, {gx:1.8, gy:4.25},
-  {gx:2.2, gy:4.25}, {gx:2.6, gy:4.25},
-];
-// Lobby tiles — overflow standing positions for when seats and the queue line
-// are both full. Each tile is uniquely claimed (same allocator pattern as
-// seats and teller slots), which is what stops customers from stacking on
-// the same point during rush events. Positions continue the queue triangle
-// backward toward the entrance + flank the door funnel on both sides.
-//
-// We chose this discrete-tile approach (Shape B) over a per-tick personal-space
-// rule (Shape A) because it matches the architecture's existing claim/release
-// pattern and avoids the deadlock risks of physics-based collision. Shape A
-// is tracked in ROADMAP.md as a lower-priority follow-up. See engine/simulation.js
-// (waiting-state priority order) for where the lobby check is wired in.
-const LOBBY_POSITIONS = [
-  // Back of the queue line — extends the QUEUE_SLOTS triangle toward gy=5
-  {gx:3.5, gy:5.0},
-  {gx:3.1, gy:5.2}, {gx:3.9, gy:5.2},
-  {gx:2.7, gy:5.4}, {gx:4.3, gy:5.4},
-  // Door-flank standing — outside the queue funnel
-  {gx:1.8, gy:5.0}, {gx:5.2, gy:5.0},
-  {gx:1.8, gy:5.4}, {gx:5.2, gy:5.4},
-];
+// Branch floor positions live in config/layout.js — they are game rules, not
+// React state. The discrete-claim (Shape B) design note for lobby tiles lives
+// with the waiting-state priority order in engine/simulation.js.
 
 // ─── INITIAL STATE ────────────────────────────────────────────────────────────
 const makeInitial = () => ({
@@ -144,6 +83,7 @@ export default function BankingEmpire() {
   // Player interaction state — refs so we don't re-render every mouse move
   const hoverRef   = useRef(null);
   const greetCdRef = useRef(0);
+  const bannerRef  = useRef(null); // last event type mirrored into React banner state
   const [greets, setGreets] = useState(0);
 
   // ── RENDER LOOP ──────────────────────────────────────────────────────────────
@@ -174,13 +114,14 @@ export default function BankingEmpire() {
         queueLength: s.chars.filter(c => c.state === "waiting").length,
         greets:      s.greets || 0,
       },
-      queueSlots:    QUEUE_SLOTS,
-      tellerSlots:   TELLER_SLOTS,
-      loanDeskPos:   LOAN_DESK_POS,
-      seatPositions: simState.current?.seatPositions ?? [],
+      queueSlots:    s.queueSlots,
+      tellerSlots:   s.tellerSlots,
+      loanDeskPos:   s.loanDeskPos,
+      seatPositions: s.seatPositions ?? [],
       tellerRoster,
       loanOfficerRoster,
       hoveredChar:   hovered,
+      simElapsed:    s.dayStart ? Date.now() - s.dayStart : 0,
     }, ts);
 
     animRef.current = requestAnimationFrame(renderLoop);
@@ -218,55 +159,29 @@ export default function BankingEmpire() {
     const hit = pickCharacter(s.chars, p.x, p.y, s.clickedCharIds);
     if (!hit) return;
 
-    greetCdRef.current = now + 400;
+    greetCdRef.current = now + SIM_TIMING.greetCooldownMs;
     s.clickedCharIds.add(hit.id);
 
-    // ── WHALE: greet for a deposit bonus (1.2×) ──────────────────────────────
-    if (hit.role === "whale") {
-      hit.interactable = false;
-      hit.deposit      = Math.round(hit.deposit * 1.2);
-      hit.emotion      = "happy";
-      hit.bubble       = "Charmed, thank you.";
-      hit.bubbleTimer  = 1800;
-      const { x, y } = toIso(hit.gx, hit.gy);
+    // Interactions run through the same command pipeline as every other
+    // character mutation — the engine owns the effects, this handler only
+    // translates a click into a command and renders the feedback.
+    const command = interactionCommandFor(hit);
+    const { updatedChar, stateDeltas } = applyCommand(command, hit, s);
+    Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
+    s.chars = s.chars.map(c => (c.id === hit.id ? updatedChar : c));
+
+    const { x, y } = toIso(updatedChar.gx, updatedChar.gy);
+    if (command.type === "GREET_WHALE") {
       particles.current.push(...spawnCoins(x, y - 14, 3));
-      setSimLog(log => [...log, `VIP greeted — +20% deposit`]);
-      return;
+      setSimLog(log => [...log, "VIP greeted — deposit boosted"]);
+    } else if (command.type === "DISPATCH_SECURITY") {
+      setSimLog(log => [...log, "Security dispatched — robbery loss reduced"]);
+    } else if (command.type === "DISTRACT_INSPECTOR") {
+      setSimLog(log => [...log, "Inspector distracted — fine reduced"]);
+    } else {
+      setGreets(s.greets);
+      particles.current.push(...spawnCoins(x, y - 14, 1));
     }
-
-    // ── ROBBER: dispatch security to reduce theft ────────────────────────────
-    if (hit.role === "robber") {
-      hit.securityDispatched = true;
-      hit.interactable       = false;
-      hit.lossFactor         = 0.4;
-      hit.bubble             = "Hands up!";
-      hit.bubbleTimer        = 1800;
-      setSimLog(log => [...log, `Security dispatched — robbery loss reduced`]);
-      return;
-    }
-
-    // ── INSPECTOR: distract to reduce fine ───────────────────────────────────
-    if (hit.role === "inspector") {
-      s.inspectorDistracted = true;
-      hit.state    = "leaving";
-      hit.emotion  = "happy";
-      hit.isMoving = true;
-      hit.bubble   = "Oh! Lovely décor.";
-      hit.bubbleTimer = 2000;
-      setSimLog(log => [...log, `Inspector distracted — fine reduced`]);
-      return;
-    }
-
-    // ── CUSTOMER: greet to calm them ─────────────────────────────────────────
-    hit.frustration = Math.max(0, (hit.frustration || 0) - 0.45);
-    hit.baseAnger   = Math.max(0, (hit.baseAnger   || 0) - 0.15);
-    hit.emotion     = hit.frustration > 0.5 ? "neutral" : "happy";
-    hit.bubble      = ["Thanks!", "Appreciated.", "Oh, lovely!", "Cheers!"][Math.floor(Math.random()*4)];
-    hit.bubbleTimer = 1600;
-    s.greets = (s.greets || 0) + 1;
-    setGreets(s.greets);
-    const { x, y } = toIso(hit.gx, hit.gy);
-    particles.current.push(...spawnCoins(x, y - 14, 1));
   }, []);
 
 
@@ -285,180 +200,57 @@ export default function BankingEmpire() {
     const setupCost = calculateOneTimeCosts(staff, fac, committed);
     if (setupCost > 0) setFin(f => ({ ...f, cash: f.cash - setupCost }));
 
-    simState.current = {
-      chars:          [],
-      nextId:         0,
-      dayStart:       Date.now(),
-      served:         0,
-      deposited:      0,
-      loans:          0,
-      walkouts:       0,
-      robberyLoss:    0,
-      regulatoryFine: 0,
-      robberCaught:   false,
-      whaleServed:    false,
-      inspectionDone: false,
-      activeTellers:  new Set(),
-      activeEvent:    null,
-      vaultOpen:      false,
-      vaultLevel:     fac.vaultLevel,
-      securityCount:  staff.security,
-      loanOfficers:   staff.loanOfficers,
-      numTellers:     staff.tellers,
-      events:         buildEventSchedule(fin.era),
-      queueCounter:   0,
-      queueSlots:     QUEUE_SLOTS,
-      tellerSlots:    TELLER_SLOTS,
-      exitPos:             EXIT_POS,
-      vaultPos:            VAULT_POS,
-      managerPos:          MGR_POS,
-      loanDeskPos:         LOAN_DESK_POS,
-      loanBypassWaypoint:  LOAN_BYPASS_WAYPOINT,
-      occupiedTellerSlots: new Set(),
-      loanDeskOccupied:    false,
-      seatPositions:       SEAT_POSITIONS.slice(0, fac.waitingSeats),
-      occupiedSeats:       new Set(),
-      lobbyPositions:      LOBBY_POSITIONS,
-      occupiedLobby:       new Set(),
-      inspectorDistracted: false,
-      clickedCharIds:      new Set(),
-      pendingRushSpawns:   0,
-      setupCost,
-      greets:              0,
-    };
+    simState.current = createDaySimState({ fin, staff, fac, setupCost, dayStart: Date.now() });
 
-    particles.current = [];
-    hoverRef.current  = null;
+    particles.current  = [];
+    hoverRef.current   = null;
     greetCdRef.current = 0;
+    bannerRef.current  = null;
     setGreets(0);
     setSimLog([]);
     setActiveEvt(null);
     setDayProg(0);
     setPhase("simulating");
 
-    // Check for milestone-triggered inspection
-    const absQ = (fin.year - 1) * 4 + fin.quarter;
-    const milestone = QUARTER_MILESTONES[absQ];
-    if (milestone?.forceInspection && randomFloat() < milestone.inspectionProb) {
-      simState.current.events.push({ type:"inspection", triggerAt:15000, done:false });
-    }
-
+    // The day loop is pure engine (tickSimulation). This interval only feeds
+    // it wall-clock time and renders its effects into React state + particles.
     simRef.current = setInterval(() => {
       const s       = simState.current;
       const elapsed = Date.now() - s.dayStart;
+      const fx      = tickSimulation(s, policy, elapsed);
 
-      if (elapsed >= 75000) { clearInterval(simRef.current); finishDay(); return; }
+      if (fx.dayOver) { clearInterval(simRef.current); finishDay(); return; }
 
-      setDayProg(Math.min(1, elapsed / 75000));
+      setDayProg(Math.min(1, elapsed / SIM_TIMING.dayLengthMs));
 
-      // Fire scheduled events
-      for (const ev of s.events) {
-        if (!ev.done && ev.triggerAt <= elapsed) {
-          ev.done = true;
-          fireEvent(ev.type, s);
-        }
+      if (fx.firedEvents.length > 0) {
+        setSimLog(log => [...log,
+          ...fx.firedEvents.map(t => `${EVT_DISPLAY[t]?.bannerLabel || t} — Q${fin.quarter}`)]);
       }
-
-      // Rush wave spawning
-      if (s.pendingRushSpawns > 0 && randomFloat() < 0.35) {
-        spawnRushCustomer(s);
-        s.pendingRushSpawns--;
-      }
-
-      // Regular customer spawn
-      const inBranch = s.chars.filter(c => c.state !== "exited").length;
-      const isRush   = s.activeEvent === "rush";
-      if (randomFloat() < (isRush ? 0.26 : 0.042) && inBranch < (isRush ? 18 : 7)) {
-        spawnCustomer(s);
-      }
-
-      // Tick characters
-      const newChars = [];
-      for (const char of s.chars) {
-        const command = evaluateCharacter(char, s, policy);
-        const { updatedChar, stateDeltas } = applyCommand(command, char, s);
-
-        // Apply state deltas
-        Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
-
-        // Coin particles on service complete
-        if (command.type === "COMPLETE_SERVICE") {
-          const { x, y } = toIso(char.gx, char.gy);
-          particles.current.push(...spawnCoins(x, y - 12, char.deposit));
-        }
-
-        if (updatedChar.state !== "exited") newChars.push(updatedChar);
-      }
-      s.chars = newChars;
-
-      // Bubble ticks + interaction-window expiry
-      const nowTs = Date.now();
-      s.chars.forEach(c => {
-        if (c.interactable && c.interactDeadline && nowTs > c.interactDeadline) {
-          c.interactable = false;
-        }
-        if (!c.bubble && randomFloat() < 0.003) {
-          if (c.state === "served") {
-            c.bubble = `+$${c.deposit.toLocaleString()}`; c.bubbleTimer = 1900;
-          } else if (c.state === "waiting" && c.emotion === "angry") {
-            c.bubble = ["Come ON!","Hurry up!","Seriously?!","I'm late!"][Math.floor(Math.random()*4)];
-            c.bubbleTimer = 1700;
-          } else if (c.state === "waiting" && c.emotion === "neutral") {
-            c.bubble = ["Good morning","Need a loan...","Hello!"][Math.floor(Math.random()*3)];
-            c.bubbleTimer = 1500;
-          }
-        }
-        if (c.bubbleTimer > 0) c.bubbleTimer -= 100;
+      fx.coins.forEach(({ gx, gy, amount }) => {
+        const { x, y } = toIso(gx, gy);
+        particles.current.push(...spawnCoins(x, y - 12, amount));
       });
-    }, 100);
-  }, [fin, staff, fac, policy, committed]);
 
-  // ── EVENT HELPERS ────────────────────────────────────────────────────────────
-  function fireEvent(type, s) {
-    const { spawnedChars, stateDeltas } = resolveEvent(type, s);
-    Object.entries(stateDeltas).forEach(([k, v]) => { s[k] = v; });
-    const now = Date.now();
-    spawnedChars.forEach(c => {
-      // Tag event chars with a click-window
-      if (c.role === "whale") {
-        c.interactable = true; c.interactWindow = 6000; c.interactDeadline = now + 6000;
-      } else if (c.role === "robber") {
-        c.interactable = true; c.interactWindow = 4000; c.interactDeadline = now + 4000;
+      // Banner mirrors engine state: appears when an event fires, clears when
+      // it expires or resolves early (robber caught, inspector distracted).
+      if (s.activeEvent !== bannerRef.current) {
+        bannerRef.current = s.activeEvent;
+        setActiveEvt(s.activeEvent ? EVT_DISPLAY[s.activeEvent] : null);
       }
-      s.chars.push(c); s.nextId++;
-    });
-
-    const evtDef = EVT_DISPLAY[type];
-    if (evtDef) setActiveEvt(evtDef);
-    setSimLog(log => [...log, `${evtDef?.bannerLabel || type} — Q${fin.quarter}`]);
-
-    setTimeout(() => {
-      if (s.activeEvent === type) s.activeEvent = null;
-      setActiveEvt(null);
-    }, 12000);
-  }
-
-  function spawnCustomer(s) {
-    const id = s.nextId++;
-    s.chars.push(createCustomer(id, s.queueCounter % QUEUE_SLOTS.length));
-    s.queueCounter++;
-  }
-
-  function spawnRushCustomer(s) {
-    const id = s.nextId++;
-    const c  = createCustomer(id, s.queueCounter % QUEUE_SLOTS.length);
-    s.chars.push({ ...c, frustration:0.6, baseAnger:0.45, emotion:"angry" });
-    s.queueCounter++;
-  }
+    }, SIM_TIMING.tickMs);
+  }, [fin, staff, fac, policy, committed]);
 
   // ── FINISH DAY ───────────────────────────────────────────────────────────────
   function finishDay() {
     cancelAnimationFrame(animRef.current);
     const s = simState.current;
 
+    const insRes         = BRANCH_EVENTS.inspection.resolution;
     const hadInspection  = s.events.some(e => e.type === "inspection" && e.done);
-    const baseFine       = hadInspection && !s.inspectionDone ? 2500 : 0;
-    const regulatoryFine = baseFine > 0 && s.inspectorDistracted ? Math.round(baseFine * 0.5) : baseFine;
+    const baseFine       = hadInspection && !s.inspectionDone ? insRes.fine : 0;
+    const regulatoryFine = baseFine > 0 && s.inspectorDistracted
+      ? Math.round(baseFine * insRes.distractedFineFactor) : baseFine;
 
     const dayResult = {
       served:         s.served,

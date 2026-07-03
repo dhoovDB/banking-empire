@@ -40,6 +40,10 @@ export const QUARTER_MILESTONES = {
   20: { forceInspection: true, inspectionProb: 1.00 },
 };
 
+// Milestone-forced inspections fire earlier in the day than the random
+// schedule (BRANCH_EVENTS.inspection.timing) so the player always sees them.
+export const FORCED_INSPECTION_TRIGGER_MS = 15000;
+
 // ─── ERA PROGRESS RULES ───────────────────────────────────────────────────────
 // Evaluated after each quarter. Points accumulate in fin.eraProgress (0–100).
 // gains: positive conditions; losses: negative conditions (points are negative).

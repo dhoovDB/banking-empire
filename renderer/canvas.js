@@ -786,11 +786,13 @@ function drawHoverRing(ctx, char, ts) {
   ctx.beginPath(); ctx.ellipse(x, y+18, 14, 5.5, 0, 0, Math.PI*2); ctx.stroke();
 }
 
-// Countdown ring above interactable event chars (whale, robber)
-function drawInteractTimer(ctx, char, now) {
-  if (!char.interactable || !char.interactDeadline) return;
+// Countdown ring above interactable event chars (whale, robber).
+// `simElapsed` is sim-day time in ms — the same clock the engine uses for
+// interactUntil, so the ring and the actual window can't drift apart.
+function drawInteractTimer(ctx, char, simElapsed) {
+  if (!char.interactable || char.interactUntil == null) return;
   const total = char.interactWindow || 1;
-  const remain = Math.max(0, char.interactDeadline - now);
+  const remain = Math.max(0, char.interactUntil - simElapsed);
   const frac = Math.min(1, remain / total);
   if (frac <= 0) return;
   const { x, y } = toIso(char.gx, char.gy);
@@ -817,7 +819,7 @@ function drawInteractTimer(ctx, char, now) {
 export function renderFrame(ctx, renderState, ts) {
   const { chars, staff, particles, activeEvent, vaultOpen, activeTellers,
           hudState, queueSlots, tellerSlots, loanDeskPos, seatPositions,
-          tellerRoster, loanOfficerRoster, hoveredChar } = renderState;
+          tellerRoster, loanOfficerRoster, hoveredChar, simElapsed = 0 } = renderState;
 
   ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
   // Soft warm spotlight
@@ -879,7 +881,6 @@ export function renderFrame(ctx, renderState, ts) {
   drawHoverRing(ctx, hoveredChar, ts);
 
   // Customers sorted by depth
-  const now = Date.now();
   [...chars].filter(c=>c.state!=="exited")
     .sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy))
     .forEach(c=>{
@@ -893,7 +894,7 @@ export function renderFrame(ctx, renderState, ts) {
         const bg=c.role==="robber"?"#ffcccc":c.role==="whale"?"#fff8d0":c.emotion==="angry"?"#ffe8d0":"#fffbee";
         drawBubble(ctx,x,y-12*scale+seatedOffset,c.bubble,bg);
       }
-      drawInteractTimer(ctx, c, now);
+      drawInteractTimer(ctx, c, simElapsed);
     });
 
   tickParticles(ctx, particles, 16);
