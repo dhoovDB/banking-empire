@@ -252,11 +252,34 @@ and doesn't enforce consequences for bad decisions.*
       principle has held since the original refactor. No drift to clean
       up. (2026-05-19)
 
-### 6. README demo video
-*Problem: a hiring manager won't clone a repo to evaluate a portfolio piece.*
+### 6. README credibility visuals
+*Problem: a hiring manager won't clone a repo — or even click a link — to*
+*evaluate a portfolio piece. The README has to show the game, prove the loop is*
+*real, and signal the architecture, all skimmable in under 90 seconds. Replaces*
+*the demo video: a 90s screen-record can't be skimmed, adds nothing to the*
+*architecture signal, and is the only deliverable needing a manual capture step*
+*(which is why it stayed open longest). See the 2026-07-25 decision-log entry.*
 
-- [ ] Record 60–90 second screen capture: setup → quarter 1 event → report screen
-- [ ] Export as GIF or MP4 and embed in README above "What you'll learn"
+- [ ] **3-panel annotated walkthrough** above "What you'll learn" — Playwright-
+      captured stills of setup → mid-day with an event firing → report screen,
+      one tight caption each. Crisp now that the high-DPI dpr work landed;
+      deterministic and scriptable end-to-end via `engineering-team/playwright-pro`,
+      so no manual recording session is required.
+- [ ] **Architecture diptych** in the Architecture section — a gameplay
+      screenshot beside a clean `config → engine → renderer → ui` layer diagram.
+      The PM signal a video can't carry: the game works *and* the builder thinks
+      in layers.
+- [ ] **Live-play badge emphasis** at the very top — a prominent
+      "▶ Play — no install, runs in your browser" CTA on the existing GitHub
+      Pages link, lowering the click friction the video was meant to bypass.
+- [ ] **README truthfulness pass (prerequisite for honest capture).** The README
+      describes eras 3–4 and concentration risk as if live, but era is capped at
+      2 (`ERA_RULES`) and `CONCENTRATION_RISK` was deleted to the v2 shelf
+      (2026-07-03). Screenshots would show era-1/2 reality against era-1/4 copy —
+      reconcile the copy to what is actually built while capturing.
+- [ ] *(Fallback, only if stills read as static in review: a ~3s optimized GIF of*
+      *the coins/chibi beat — Playwright frame-captures stitched, not a live*
+      *screen-record.)*
 
 ---
 
@@ -278,7 +301,8 @@ and doesn't enforce consequences for bad decisions.*
       `product-team/skills/ui-design-system` for (3)–(4) (design tokens +
       responsive calculations), and `engineering-team/playwright-pro` to
       verify — scripted screenshots at 1280×720 / high-DPI / narrow widths,
-      which also feeds the `demo-video` skill for the README capture.
+      which also produce the stills for the SHORT TERM §6 README credibility
+      visuals.
 
 - [ ] **Role clarity for chibis — legend panel in HUD (working direction)** —
       desks have nameplates ("LOANS") but the chibis themselves don't read
@@ -589,6 +613,24 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-07-25 — Demo video cut in favor of static README visuals
+
+The lone remaining v1 blocker was a 60–90s demo video. Cut it. A video wins only
+on motion; it loses on the goals that matter here — you cannot skim a 90s clip in
+the "understand within 90 seconds" sense, it adds nothing to the architecture
+signal a PM reviewer is looking for, and it is the only deliverable that needs a
+manual screen-record (which is why it stayed open longest). Replaced with three
+skimmable, scriptable assets: a Playwright 3-panel loop walkthrough, an
+architecture diptych (gameplay screenshot + layer diagram), and a prominent
+live-play badge on the already-deployed GitHub Pages build. All three are
+capturable without a recording session, which is what unblocks v1. A ~3s charm
+GIF stays as a fallback only if reviewers find the stills static. The change also
+surfaced a prerequisite: the README describes eras 3–4 and concentration risk as
+live though era is capped at 2 and concentration risk was shelved — the
+honest-capture requirement forces a README truthfulness pass at the same time.
+The v1 Definition-of-done criterion is unchanged ("understands what the game is
+within 90 seconds of opening the README"); only the deliverable behind it changed.
+
 ### 2026-07-03 — Setup costs were silently refunded; adversarial review caught it
 
 Found by running the `adversarial-reviewer` skill (claude-skills) over the
@@ -831,5 +873,5 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-07-19. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-07-25. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
