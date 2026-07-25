@@ -95,6 +95,19 @@ export default function BankingEmpire() {
     const s   = simState.current;
     if (!s) return;
 
+    // High-DPI: backing store in device pixels, all drawing in logical
+    // 1080×640 coordinates (CSS size is pinned in SimScreen). Re-checked
+    // every frame because devicePixelRatio changes when the window moves
+    // between monitors; resizing also wipes the canvas, so only on change.
+    const dpr = window.devicePixelRatio || 1;
+    const bw  = Math.round(CANVAS_W * dpr);
+    const bh  = Math.round(CANVAS_H * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width  = bw;
+      canvas.height = bh;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     // Resolve hovered char from latest sim state
     const hovered = hoverRef.current
       ? s.chars.find(c => c.id === hoverRef.current) || null

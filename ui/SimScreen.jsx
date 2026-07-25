@@ -83,7 +83,12 @@ export default function SimScreen({
           onMouseMove={onCanvasMove}
           onMouseLeave={onCanvasLeave}
           onClick={onCanvasClick}
-          style={{ display: "block", borderRadius: 6, border: `1px solid ${C.border}` }} />
+          style={{
+            // CSS size stays in logical pixels; the render loop scales the
+            // backing store by devicePixelRatio behind this fixed footprint.
+            display: "block", width: CANVAS_W, height: CANVAS_H,
+            borderRadius: 6, border: `1px solid ${C.border}`,
+          }} />
 
         <div style={{ width: 180, flexShrink: 0 }}>
 

@@ -267,8 +267,8 @@ and doesn't enforce consequences for bad decisions.*
 
 - [ ] **UI credibility pass (from the 2026-07-02 critical review)** — the four
       items deliberately split out of the simplification refactor, in payoff
-      order: (1) high-DPI canvas rendering via `devicePixelRatio` (currently
-      blurry on retina/4K), (2) responsive scaling — canvas `max-width` +
+      order: (1) ~~high-DPI canvas rendering via `devicePixelRatio`~~ **done
+      2026-07-19** (see Completed), (2) responsive scaling — canvas `max-width` +
       SetupScreen `auto-fit` grid; the app breaks below ~1280px, (3) spacing
       and font scales in `ui/theme.js`, sweeping the ad-hoc inline values
       across the three screens, (4) ReportScreen quarter-over-quarter deltas
@@ -802,6 +802,20 @@ a test instead of shipping silently.
       loan demand elasticity wired (inverted roll fixed), concentration risk
       and canvas HUD deleted, ESLint layer-boundary rules added. 103/103
       tests. See the two 2026-07-03 decision-log entries. (2026-07-03)
+- [x] High-DPI canvas rendering — UI credibility pass item (1). The render
+      loop in `BankingEmpire.jsx` sizes the backing store to
+      `CANVAS_W/H × devicePixelRatio` and applies one absolute
+      `ctx.setTransform(dpr, …)` per frame; `ui/SimScreen.jsx` pins the CSS
+      size to the logical 1080×640 so the on-screen footprint is unchanged.
+      All drawing stays in logical coordinates — zero changes in `renderer/`
+      (its `save`/`scale`/`restore` pairs compose on top of the base
+      transform). dpr is re-read each frame so monitor hops re-crisp the
+      canvas; the backing store only resizes on change (resizing wipes the
+      canvas). Click mapping untouched — `getCanvasPoint` already normalizes
+      via `CANVAS_W / rect.width`, which is dpr-agnostic. dpr read lives at
+      the boundary (`BankingEmpire.jsx`), not the renderer, per the layer
+      contract. 104/104 tests, lint clean. Items (2)–(4) of the pass remain.
+      (2026-07-19)
 - [x] §1e rush seat-usage recurrence diagnosed — **not a bug.** New rush-replica integration test (`engine/simulation.test.js`, "real 8-customer replica fills all 3 seats") drives 8 angry customers (frustration 0.6 / baseAnger 0.45) through the full `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline with both era-1 tellers busy and `activeEvent: "rush"` doubling frustration growth. All 3 seats fill, zero walkouts. The earlier test injected only 3 calm customers with 0 tellers; this one exercises the real spawn conditions and proves the allocator is correct under load. The "one seat at a time" observation is seat→teller churn (waiting priority 1 pulls seated customers to a freed teller), not a dropped claim — correct behaviour for a transient waiting seat. 93/93 passing. See §1e for the full diagnosis. (2026-06-01)
 
 ---
@@ -817,5 +831,5 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-07-03. The daily-task selector reads the SHORT TERM section
+*Last updated: 2026-07-19. The daily-task selector reads the SHORT TERM section
 first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
