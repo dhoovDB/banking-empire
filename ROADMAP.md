@@ -260,26 +260,35 @@ and doesn't enforce consequences for bad decisions.*
 *architecture signal, and is the only deliverable needing a manual capture step*
 *(which is why it stayed open longest). See the 2026-07-25 decision-log entry.*
 
-- [ ] **3-panel annotated walkthrough** above "What you'll learn" — Playwright-
-      captured stills of setup → mid-day with an event firing → report screen,
-      one tight caption each. Crisp now that the high-DPI dpr work landed;
-      deterministic and scriptable end-to-end via `engineering-team/playwright-pro`,
-      so no manual recording session is required.
-- [ ] **Architecture diptych** in the Architecture section — a gameplay
-      screenshot beside a clean `config → engine → renderer → ui` layer diagram.
-      The PM signal a video can't carry: the game works *and* the builder thinks
-      in layers.
-- [ ] **Live-play badge emphasis** at the very top — a prominent
-      "▶ Play — no install, runs in your browser" CTA on the existing GitHub
-      Pages link, lowering the click friction the video was meant to bypass.
-- [ ] **README truthfulness pass (prerequisite for honest capture).** The README
-      describes eras 3–4 and concentration risk as if live, but era is capped at
-      2 (`ERA_RULES`) and `CONCENTRATION_RISK` was deleted to the v2 shelf
-      (2026-07-03). Screenshots would show era-1/2 reality against era-1/4 copy —
-      reconcile the copy to what is actually built while capturing.
+Split into a "reliable parts" pass (shipped 2026-07-25) and a follow-up
+screenshot-capture pass, because exploration found the capture is the heavy,
+risky piece (no Playwright installed; the canvas is driven by `Math.random`,
+not yet seedable) while the copy + diagram are fast and reliable.
+
+- [x] **Live-play badge emphasis** at the very top — a "▶ Play Now — No Install
+      Needed" shields badge on the GitHub Pages link. (2026-07-25)
+- [x] **README truthfulness pass.** Reconciled the overclaim: eras 3–4 and
+      Fed-rate moves moved under "On the roadmap"; era 2 reworded to what it
+      actually ships (security/robbery/inspection + vault & seat upgrades);
+      "Concentration risk" and "Telegraphed macro events" relabelled designed-
+      but-shelved / planned; bank-run and Fed lessons split into a "planned"
+      list; the stale "unit tests" what's-next line fixed (104 tests already
+      ship). Chose relabel-as-planned over deletion to keep the roadmap vision
+      visible. (2026-07-25)
+- [x] **Architecture diagram** — `docs/images/architecture.svg`, a self-
+      contained four-layer diagram (config → engine → renderer → ui, plus the
+      BankingEmpire.jsx root and the ESLint-enforced import rule), derived from
+      the CLAUDE.md layer table and dropped into the Architecture section in
+      place of the ASCII block. This is the diptych's left half. (2026-07-25)
+- [ ] **3-panel annotated walkthrough** above "What you'll learn" — stills of
+      setup → mid-day with an event firing → report, one caption each. Deferred
+      capture pass: use `claude-in-chrome` against the live deploy (chosen over
+      a Playwright harness to avoid adding deps for the last v1 blocker). Crisp
+      now that the high-DPI dpr work landed.
+- [ ] **Complete the architecture diptych** — pair a gameplay screenshot beside
+      the existing `architecture.svg`. Lands with the capture pass above.
 - [ ] *(Fallback, only if stills read as static in review: a ~3s optimized GIF of*
-      *the coins/chibi beat — Playwright frame-captures stitched, not a live*
-      *screen-record.)*
+      *the coins/chibi beat — frame-captures stitched, not a live screen-record.)*
 
 ---
 
