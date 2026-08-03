@@ -46,6 +46,35 @@ Then open http://localhost:5173 in your browser. Node 18+ required.
 
 ---
 
+## One quarter, start to finish
+
+**1 · Set your rates and staff the branch.**
+
+![Banking Empire setup screen: lending rate at 6.5% and deposit rate at 2.0% on sliders, a staff panel showing 2 tellers and 1 loan officer hired for a setup cost of $13,000, facilities with era-2 vault and seat upgrades locked, and the start of a reference table explaining what each KPI means.](docs/images/screenshot-setup.jpg)
+
+Every hire is a quarterly salary you have to earn back. The reference table below
+the controls tells you what each number means and what counts as dangerous —
+before you commit, not after.
+
+**2 · The quarter plays out on the floor.**
+
+![The branch during a regulatory inspection: an amber banner reads "Inspectors are reviewing your operations. Serve the inspector to avoid a fine," the canvas is outlined in a dashed amber border, and an inspector in a hat stands among nine customers while two tellers work the counter.](docs/images/screenshot-event.jpg)
+
+Customers queue, take a seat, get served, or give up and walk out — you watch it
+happen. Here a regulator arrives mid-quarter. Serve the inspector and the fine
+goes away. Ignore them and it doesn't.
+
+**3 · The numbers judge you.**
+
+![Q1 report: quarterly P&L showing $1,300 interest income against $9,000 staff salaries, a $2,500 regulatory fine, and $13,000 setup costs for a net loss of $19,587; key metrics showing NIM 1.31%, CAR 14.7%, NPL 2.9%, reputation down to 67.](docs/images/screenshot-report.jpg)
+
+The inspection went unserved, so a $2,500 fine lands on the P&L and reputation
+drops from 72 to 67. Era 1 NIM sits at 1.31% because deposits cost money before
+the loan book is big enough to pay for them. That's the first lesson, and the
+game is built to make you feel it rather than read it.
+
+---
+
 ## What you'll learn
 
 By the end of a 20-quarter playthrough you should be able to explain:
@@ -73,7 +102,18 @@ primary source if you want the real version.
 This started as a ~1000-line vibe-coded prototype. The refactor separated
 four concerns that were previously tangled together:
 
-![Banking Empire's four-layer architecture: config, engine, renderer, and ui, with BankingEmpire.jsx as the only smart component importing all four. Each layer imports only from the layers to its left.](docs/images/architecture.svg)
+<table>
+<tr>
+<td width="50%" valign="top">
+<img width="100%" src="docs/images/screenshot-branch.jpg" alt="The branch mid-quarter: two tellers behind the counter saying 'Next please!', a loan officer at the loan desk, eight customers spread across the isometric floor, and a sidebar showing 3 served, $20k deposited, and live NIM, CAR, NPL and reputation readouts.">
+<p align="center"><em>What the player sees</em></p>
+</td>
+<td width="50%" valign="top">
+<img width="100%" src="docs/images/architecture.svg" alt="Banking Empire's four-layer architecture: config, engine, renderer, and ui, with BankingEmpire.jsx as the only smart component importing all four. Each layer imports only from the layers to its left.">
+<p align="center"><em>What's underneath</em></p>
+</td>
+</tr>
+</table>
 
 - **`config/`** — Game rules as data. Rebalancing the game means editing
   config, never the engine.

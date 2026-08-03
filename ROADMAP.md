@@ -28,13 +28,13 @@ the eras.
 
 ## Definition of done — v1
 
-**Banking Empire v1 ships when:**
-- [ ] A player can run a full 20-quarter playthrough start to finish in one sitting without hitting a crash
-- [ ] Anyone with the link can play in a desktop browser without cloning the repo
-- [ ] An outside reader understands what the game is within 90 seconds of opening the README
-- [ ] A player pulling a rate slider, watching a tick, or reading the quarterly report sees the response they expect — every time
-- [ ] A player who staffs up at setup sees the cost on their balance sheet before quarter 1 begins
-- [ ] A player who makes catastrophically bad decisions actually loses the game (negative equity or NPL receivership)
+**Banking Empire v1 SHIPPED 2026-08-02.**
+- [x] A player can run a full 20-quarter playthrough start to finish in one sitting without hitting a crash
+- [x] Anyone with the link can play in a desktop browser without cloning the repo
+- [x] An outside reader understands what the game is within 90 seconds of opening the README
+- [x] A player pulling a rate slider, watching a tick, or reading the quarterly report sees the response they expect — every time
+- [x] A player who staffs up at setup sees the cost on their balance sheet before quarter 1 begins
+- [x] A player who makes catastrophically bad decisions actually loses the game (negative equity or NPL receivership)
 
 Everything beyond this is v2. Resist the pull to keep adding until v1 ships.
 
@@ -43,7 +43,8 @@ See SHORT TERM section for the specific bugs and gaps behind each criterion.
 ---
 
 ## SHORT TERM — v1 blockers
-*These must be done before anything else. In priority order.*
+*All closed as of 2026-08-02. Kept for the record; MEDIUM TERM is now the live
+backlog. Was: these must be done before anything else, in priority order.*
 
 ### 1. Core simulation bugs
 *Problem: the sim loop has known issues that break the player experience.*
@@ -280,15 +281,49 @@ not yet seedable) while the copy + diagram are fast and reliable.
       BankingEmpire.jsx root and the ESLint-enforced import rule), derived from
       the CLAUDE.md layer table and dropped into the Architecture section in
       place of the ASCII block. This is the diptych's left half. (2026-07-25)
-- [ ] **3-panel annotated walkthrough** above "What you'll learn" — stills of
-      setup → mid-day with an event firing → report, one caption each. Deferred
-      capture pass: use `claude-in-chrome` against the live deploy (chosen over
-      a Playwright harness to avoid adding deps for the last v1 blocker). Crisp
-      now that the high-DPI dpr work landed.
-- [ ] **Complete the architecture diptych** — pair a gameplay screenshot beside
-      the existing `architecture.svg`. Lands with the capture pass above.
+- [x] **3-panel annotated walkthrough** above "What you'll learn" — shipped as
+      "One quarter, start to finish": `screenshot-setup.jpg` (2 tellers + 1 loan
+      officer hired, $13,000 setup cost showing), `screenshot-event.jpg` (a
+      regulatory inspection firing — amber banner, dashed canvas border,
+      inspector on the floor among nine customers), `screenshot-report.jpg` (the
+      unserved inspection's $2,500 fine on the P&L, reputation 72 → 67, era-1 NIM
+      at 1.31%). One caption each, written to the CLAUDE.md in-game copy
+      register. Captured with `claude-in-chrome` against the live deploy as
+      planned. (2026-08-02)
+- [x] **Complete the architecture diptych** — `screenshot-branch.jpg` (two
+      tellers working the counter, loan officer at the desk, eight customers on
+      the floor) now sits beside `architecture.svg` in a two-column HTML table
+      captioned "What the player sees" / "What's underneath". (2026-08-02)
 - [ ] *(Fallback, only if stills read as static in review: a ~3s optimized GIF of*
-      *the coins/chibi beat — frame-captures stitched, not a live screen-record.)*
+      *the coins/chibi beat — frame-captures stitched, not a live screen-record.*
+      *Not a v1 blocker; v1 shipped on the stills.)*
+
+**Two things the capture pass surfaced, both fixed the same day:**
+
+- [x] **The live deploy was 10 weeks stale.** `gh-pages` was last published
+      2026-05-17 (`2d82f47`) while `main` had moved through the entire
+      simplification pass, era-2 advancement, the KPI reference table, the
+      setup-cost refund fix, and the high-DPI canvas work. The "▶ Play Now"
+      badge added 2026-07-25 was pointing at a build without any of it —
+      confirmed in-browser (the live setup screen had no "What these numbers
+      mean" table, which `ui/SetupScreen.jsx` renders unconditionally). Ran
+      `npm run deploy`; the live build now matches `main`. This is the concrete
+      cost of manual deploy and promotes the MEDIUM TERM GitHub Actions
+      auto-deploy item — see below. (2026-08-02)
+- [x] **"Securitys" on the setup screen.** `ui/SetupScreen.jsx` rendered staff
+      labels as `def.label + "s"`, so `"Security"` came out `"Securitys"` —
+      while `ui/SimScreen.jsx` showed "Security" correctly, so the two screens
+      disagreed. Caught because the typo landed in the setup screenshot. Fixed
+      by moving pluralisation into config as data: every `STAFF_DEFINITIONS`
+      entry now carries an explicit `plural`, and the UI renders `def.plural`
+      instead of applying a string rule. `/codereview` then caught the other
+      half: `ui/SimScreen.jsx` hard-coded the same three labels as a literal
+      array, so config wasn't actually the single source and a fourth role
+      would have meant editing two files. SimScreen now maps over
+      `STAFF_DEFINITIONS` like SetupScreen does. A new test in
+      `engine/characters.test.js` requires a non-empty `label` and `plural` on
+      every role, so a role added without one fails loudly rather than
+      rendering blank. 105/105 passing. (2026-08-02)
 
 ---
 
@@ -354,12 +389,17 @@ not yet seedable) while the copy + diagram are fast and reliable.
 
 ### Deploy automation
 
-- [ ] **GitHub Actions auto-deploy on push to master** — currently the
-      gh-pages branch updates only when someone runs `npm run deploy`
-      locally (added 2026-05-08). Replace with a workflow at
-      `.github/workflows/deploy.yml` that builds and deploys on every push.
-      Worth doing once playthrough churn slows down — until then the
-      manual script is fine and avoids CI debugging on small changes.
+- [ ] **GitHub Actions auto-deploy on push to main** — *promoted to the top of
+      MEDIUM TERM on 2026-08-02.* The gh-pages branch updates only when someone
+      runs `npm run deploy` locally (added 2026-05-08). The 2026-08-02 capture
+      pass found the live site 10 weeks behind `main` — two and a half months of
+      shipped work invisible to anyone clicking the "Play Now" badge, and nobody
+      noticed because nothing surfaces the drift. The earlier reasoning here
+      ("the manual script is fine until playthrough churn slows down") had it
+      backwards: churn is exactly when a manual step gets skipped. Replace with
+      a workflow at `.github/workflows/deploy.yml` that builds and deploys on
+      every push to `main`. Until it exists, `npm run deploy` is a required step
+      in any session that changes player-visible behaviour.
 
 ### Gameplay loop improvements
 
@@ -622,6 +662,56 @@ playthrough complaint. The customer's loan-desk stop position
 (`LOAN_DESK_POS` at gy=2.4, engine-side) is unchanged — the desk-to-customer
 gap is the price of giving the manager desk room to breathe.
 
+### 2026-08-02 — v1 shipped; the deploy gap was the real last blocker
+
+The last two v1 boxes were screenshots, and capturing them turned up something
+bigger than the screenshots. The live GitHub Pages build was ten weeks stale —
+`gh-pages` at 2026-05-17 against a `main` that had since landed the whole
+simplification pass, era-2 advancement, the KPI reference table, the setup-cost
+refund fix, and high-DPI rendering. Every one of those is player-visible. The
+"▶ Play Now — No Install Needed" badge added on 2026-07-25, in the same pass
+that removed the README's overclaims, was itself pointing at a build that could
+not deliver what the README described.
+
+Nothing in the repo was wrong. `main` was correct, tested, and lint-clean the
+whole time; the deploy step just never ran. That is the failure mode worth
+recording: a manual publish step attached to no gate drifts silently, and the
+drift is invisible from inside the repo — you have to look at the deployed
+artifact to see it. The capture pass only caught it because a screenshot forces
+you to look at what a visitor actually sees. Ticking the v1 criterion "anyone
+with the link can play in a desktop browser" against the repo rather than
+against the link would have been wrong.
+
+Two consequences. The GitHub Actions auto-deploy item moves to the top of
+MEDIUM TERM with its old reasoning explicitly reversed — it argued the manual
+script was fine until playthrough churn slowed down, when churn is precisely
+when a manual step gets skipped. And until that workflow exists, `npm run
+deploy` is a required step in any session touching player-visible behaviour,
+not an optional finishing move.
+
+The same pass caught "Securitys" on the setup screen — `label + "s"` applied to
+"Security" — because the typo landed in a screenshot bound for the README. Fixed
+by moving pluralisation into `STAFF_DEFINITIONS` as an explicit `plural` field
+rather than leaving a string rule in the UI, which is the config-owns-display-
+strings rule the 2026-05-29 event-display consolidation already established.
+`/codereview` then found the fix was half-done: `ui/SimScreen.jsx` still
+hard-coded `[["Tellers", …], ["Loan Officers", …], ["Security", …]]` as a
+literal, so config was one of two sources and the two screens could drift again
+the moment a role was added. Both screens now map over `STAFF_DEFINITIONS`. A
+test requires the field so the next role added can't reintroduce the bug.
+
+Small fix, but it makes two points worth keeping. First, screenshots function as
+a review gate the test suite can't replace: tests assert behaviour, screenshots
+assert what the player reads, and no test in the suite was ever going to fail on
+"Securitys". Second, this is the third variant of the same drift the 2026-05-29
+consolidation and the 2026-05-21 `ui/theme.js` extraction each caught — display
+strings copied into a component instead of read from config. The rule is already
+written down in CLAUDE.md; what keeps catching it is a review pass, not the rule.
+
+v1 is done. All six Definition-of-done criteria are checked, and the deliverable
+behind the README criterion is the three-panel walkthrough plus the architecture
+diptych, per the 2026-07-25 decision below.
+
 ### 2026-07-25 — Demo video cut in favor of static README visuals
 
 The lone remaining v1 blocker was a 60–90s demo video. Cut it. A video wins only
@@ -867,6 +957,18 @@ a test instead of shipping silently.
       the boundary (`BankingEmpire.jsx`), not the renderer, per the layer
       contract. 104/104 tests, lint clean. Items (2)–(4) of the pass remain.
       (2026-07-19)
+- [x] **v1 SHIPPED** — §6 README credibility visuals closed with four stills
+      captured from the live deploy via `claude-in-chrome`: a three-panel
+      "One quarter, start to finish" walkthrough (setup → a regulatory
+      inspection firing → the Q1 report showing the $2,500 fine it cost) above
+      "What you'll learn", and `screenshot-branch.jpg` paired with
+      `architecture.svg` as the architecture diptych. All six v1
+      Definition-of-done criteria now checked. Two defects fixed in the same
+      pass: the live deploy was 10 weeks stale (`npm run deploy` run; the
+      GitHub Actions item promoted with the drift as evidence), and the setup
+      screen's "Securitys" label (pluralisation moved into `STAFF_DEFINITIONS`
+      as data, guarded by a new test). 105/105 passing. See decision log
+      2026-08-02. (2026-08-02)
 - [x] §1e rush seat-usage recurrence diagnosed — **not a bug.** New rush-replica integration test (`engine/simulation.test.js`, "real 8-customer replica fills all 3 seats") drives 8 angry customers (frustration 0.6 / baseAnger 0.45) through the full `entering → queue slot → JOIN_WAIT → CLAIM_SEAT` pipeline with both era-1 tellers busy and `activeEvent: "rush"` doubling frustration growth. All 3 seats fill, zero walkouts. The earlier test injected only 3 calm customers with 0 tellers; this one exercises the real spawn conditions and proves the allocator is correct under load. The "one seat at a time" observation is seat→teller churn (waiting priority 1 pulls seated customers to a freed teller), not a dropped claim — correct behaviour for a transient waiting seat. 93/93 passing. See §1e for the full diagnosis. (2026-06-01)
 
 ---
@@ -882,5 +984,7 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-07-25. The daily-task selector reads the SHORT TERM section
-first. Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
+*Last updated: 2026-08-02 — v1 shipped. The daily-task selector reads the SHORT
+TERM section first; with v1 closed, MEDIUM TERM is now the live backlog and
+GitHub Actions auto-deploy sits at the top of it. Structure follows the portfolio
+standard in writing-kit/ROADMAP-TEMPLATE.md.*
