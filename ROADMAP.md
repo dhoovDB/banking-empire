@@ -368,7 +368,25 @@ not yet seedable) while the copy + diagram are fast and reliable.
       Item #6 in the 2026-05-03 playthrough sequence.
 
 ### Developer tooling
-*These changes happen in the claude-skills repo, not here. This entry is a*
+
+- [ ] **Write down the screenshot capture recipe** — `docs/images/README.md`
+      (adversarial review, 2026-08-02, WARNING). The four README stills landed
+      with no record of how to remake them, so the next UI change means
+      rediscovering all of it. Must capture: window size, the staffing used
+      (2 tellers + 1 loan officer), the crop, and above all **the throttling
+      trap** — Chrome throttles the 100 ms sim tick to ~1/sec in a hidden tab,
+      so the branch captures nearly empty and the report reads "0 customers
+      served" while looking exactly like a game bug. That one cost real time on
+      2026-08-02 and currently lives only in this file's prose. Verify with
+      `document.visibilityState === "visible"` and a tick-rate check (~30 fires
+      in 3s) before capturing anything. The same file should record the standing
+      rule that captures are **viewport only — never full-screen, no browser
+      chrome**: committed images are permanent in public git history, so a
+      screenshot that catches the author's tabs or bookmarks can't be taken
+      back. (The current four are clean — verified viewport-only, and carrying
+      no EXIF beyond JFIF quantization tables.)
+
+*The entries below happen in the claude-skills repo, not here. They are a*
 *reminder only — Banking Empire benefits from them but doesn't host them.*
 
 - [ ] **SKILL.md: html5-canvas** — iso coordinate system, tile-fraction
@@ -505,6 +523,24 @@ not yet seedable) while the copy + diagram are fast and reliable.
       for every KPI_DEFINITIONS entry. (2026-07-03)
 
 ### Testing
+
+- [ ] **Assert key symmetry between `STAFF_DEFINITIONS` and `DEFAULT_STAFF`**
+      (adversarial review, 2026-08-02, WARNING). Since the 2026-08-02 label fix,
+      both `ui/SetupScreen.jsx` and `ui/SimScreen.jsx` iterate
+      `STAFF_DEFINITIONS` to decide which staff rows exist, while the state
+      filling them is seeded from `DEFAULT_STAFF`. Add a fourth role to config
+      and forget the seed and the setup screen renders a Stepper with
+      `value={undefined}`: its `+` handler is `Math.min(max, value + 1)` → `NaN`,
+      and `disabled={value >= max}` is `false` for undefined, so the button is
+      live. One click writes `NaN` into the staff count, which flows straight
+      into `calculateOneTimeCosts` and `calculateRecurringSalaries`. SimScreen
+      hides it — `staff[role] || 0` renders a confident "0". The existing test
+      only checks the reverse direction (every `DEFAULT_STAFF` key has a
+      definition). Verified latent, not live: all three roles have entries on
+      both sides today. Fix is ~6 lines in `engine/characters.test.js`.
+      Bundle with it the one-line `// reason:` on `plural: "Security"`, which
+      is identical to its `label` and reads like a copy-paste slip a future
+      reader will "fix" to "Securities".
 
 - [x] **Thorough unit test coverage** — the 2026-07-03 simplification pass
       closed the bulk of this: `tickSimulation` day-level tests (event firing,
