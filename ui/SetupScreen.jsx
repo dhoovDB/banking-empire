@@ -136,7 +136,7 @@ export default function SetupScreen({ fin, staff, fac, policy, committed, onStaf
           <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, marginBottom: 12 }}>Staff</div>
           {Object.entries(STAFF_DEFINITIONS).map(([role, def]) => (
             <Stepper key={role}
-              label={def.label + "s"} value={staff[role]} min={0} max={def.max}
+              label={def.plural} value={staff[role]} min={0} max={def.max}
               cost={def.hireCost} salary={def.salary} tooltip={def.tooltip}
               onChange={v => onStaffChange(role, v)} />
           ))}

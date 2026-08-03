@@ -24,6 +24,19 @@ describe("staff definition caps", () => {
     }
   });
 
+  // The setup screen renders def.plural directly. It used to render `label + "s"`,
+  // which produced "Securitys". A role added without a plural would now render a
+  // blank label instead, so require the field rather than falling back to the rule
+  // that caused the bug.
+  it("every staff role has a non-empty label and plural", () => {
+    for (const [role, def] of Object.entries(STAFF_DEFINITIONS)) {
+      expect(def.label, `${role}.label`).toBeTypeOf("string");
+      expect(def.label.length, `${role}.label is non-empty`).toBeGreaterThan(0);
+      expect(def.plural, `${role}.plural`).toBeTypeOf("string");
+      expect(def.plural.length, `${role}.plural is non-empty`).toBeGreaterThan(0);
+    }
+  });
+
   it("every default staffing level sits within its role's cap", () => {
     for (const [role, count] of Object.entries(DEFAULT_STAFF)) {
       expect(STAFF_DEFINITIONS[role], `${role} has a definition`).toBeDefined();

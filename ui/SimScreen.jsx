@@ -1,5 +1,6 @@
 import React from "react";
 import { CANVAS_W, CANVAS_H } from "../renderer/canvas.js";
+import { STAFF_DEFINITIONS } from "../config/characters.js";
 import { C, ERA_NAMES, kpiColor } from "./theme.js";
 
 function KPIRow({ label, kpiKey, value, display }) {
@@ -121,12 +122,15 @@ export default function SimScreen({
           {/* Staff */}
           <div style={sidebarCard}>
             <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>STAFF</div>
-            {[["Tellers", staff.tellers], ["Loan Officers", staff.loanOfficers], ["Security", staff.security]].map(([label, count]) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: C.dim }}>{label}</span>
-                <span style={{ color: count > 0 ? C.text : C.dim }}>{count}</span>
-              </div>
-            ))}
+            {Object.entries(STAFF_DEFINITIONS).map(([role, def]) => {
+              const count = staff[role] || 0;
+              return (
+                <div key={role} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: C.dim }}>{def.plural}</span>
+                  <span style={{ color: count > 0 ? C.text : C.dim }}>{count}</span>
+                </div>
+              );
+            })}
           </div>
 
           {/* Event log */}
