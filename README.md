@@ -11,6 +11,10 @@ through play. Manage a community bank across 20 quarters — set interest rates,
 hire staff, and handle crises — while keeping your regulators happy and your
 depositors happier.
 
+It's for anyone who wants to understand how a bank actually works — finance
+students at one end, the generally curious at the other. No banking background
+required; the game explains its own numbers as you play.
+
 Built by an AI Product Manager who used to work in fintech and wanted to
 understand React architecture better.
 
@@ -72,6 +76,46 @@ The inspection went unserved, so a $2,500 fine lands on the P&L and reputation
 drops from 72 to 67. Era 1 NIM sits at 1.31% because deposits cost money before
 the loan book is big enough to pay for them. That's the first lesson, and the
 game is built to make you feel it rather than read it.
+
+---
+
+## What got cut
+
+v1 was defined as six criteria and defended against everything else. Three
+things were cut on the way, and the reasoning matters more than the features.
+
+**40 quarters → 20.** The original arc ran 40. Forty quarters is a live-service
+product — it needs meta-progression, save states, and a reason to come back on
+day three. Twenty is a single sitting, which is the only format this actually
+gets played in.
+
+**Loan officers capped at 1.** The setup screen sold up to three officers at
+$8,000 hire plus $4,000/quarter each. The engine models one loan desk — every
+check against it is binary — so the second and third officer bought nothing. A
+playtest found it: *"the 2nd loan officer is a ghost again."* Two fixes were
+available: build multi-desk throughput, or cap the role and be honest about what
+the game models. v1 took the cap. Removing a half-built capability is a smaller
+change than finishing one, and the player contract gets simpler — you pay for
+one officer, you get one officer's worth of service. Multi-desk throughput is
+scoped for v2, with a test that fails if the cap is lifted without it.
+
+**A 90-second demo video.** Cut in favour of the three panels above. Video wins
+on motion and loses on everything that matters here: you can't skim a clip, it
+adds nothing to the architecture signal, and it was the only deliverable that
+needed a manual screen-record — which is why it stayed open longest.
+
+**The bug the tests agreed with.** Hiring staff charged the player's cash during
+the quarter, then silently refunded it at quarter end: the day loop captured its
+financial snapshot before the deduction landed. The unit tests encoded the same
+false premise, so they passed while the game did the wrong thing. An adversarial
+review pass caught it, not the suite. The fix made one place responsible for the
+charge, and the tests now assert the money actually leaves.
+
+Playtests drive the backlog the same way. *"A bank rush is more than just a rush
+of customers"* split one event into two on the v2 list — a foot-traffic surge
+that tests staffing, and a confidence-driven bank run that tests the liquidity
+floor. Full decision log, including the calls that went the other way, in
+`ROADMAP.md`.
 
 ---
 
@@ -166,6 +210,10 @@ wired.
 - HTML5 Canvas (no game engine library — the renderer is ~400 lines of
   hand-written isometric drawing code)
 - Vite
+- Vitest — 105 tests across the financial model, the simulation loop, event
+  config, and staffing rules
+- ESLint with `no-restricted-imports` encoding the layer boundaries above, so a
+  change that collapses them fails the build instead of shipping
 
 ---
 

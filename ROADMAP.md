@@ -324,6 +324,22 @@ not yet seedable) while the copy + diagram are fast and reliable.
       `engine/characters.test.js` requires a non-empty `label` and `plural` on
       every role, so a role added without one fails loudly rather than
       rendering blank. 105/105 passing. (2026-08-02)
+- [x] **"What got cut" section**, added below the architecture diptych.
+      Documents three scope cuts — 40 quarters reduced to 20 (a single-sitting
+      arc, not a live-service product), loan officers capped at 1 (the engine
+      models one loan desk; a playtest found the second officer was "a ghost
+      again"), and the 90-second demo video dropped in favour of the three
+      stills — plus a fourth entry on **the bug the tests agreed with**: hiring
+      charged the player's cash mid-quarter, then silently refunded it,
+      because the day loop snapshotted financials before the deduction
+      landed; the unit tests encoded the same false premise, so they passed
+      while the game did the wrong thing, and an adversarial review pass
+      caught it instead of the suite. The intro also gained an audience line
+      — "for anyone who wants to understand how a bank actually works." The
+      point isn't the four call-outs; it's making the v1 scope-defense
+      legible to a hiring manager without them reading a single commit — the
+      reasoning behind what got cut is the portfolio signal, not the
+      features that shipped. (2026-08-04)
 
 ---
 
@@ -1020,7 +1036,8 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-08-02 — v1 shipped. The daily-task selector reads the SHORT
-TERM section first; with v1 closed, MEDIUM TERM is now the live backlog and
-GitHub Actions auto-deploy sits at the top of it. Structure follows the portfolio
-standard in writing-kit/ROADMAP-TEMPLATE.md.*
+*Last updated: 2026-08-04 — §6 gained a "What got cut" README section (scope
+cuts plus the setup-cost refund bug the tests agreed with). The daily-task
+selector reads the SHORT TERM section first; with v1 closed, MEDIUM TERM is
+now the live backlog and GitHub Actions auto-deploy sits at the top of it.
+Structure follows the portfolio standard in writing-kit/ROADMAP-TEMPLATE.md.*
