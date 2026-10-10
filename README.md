@@ -115,7 +115,7 @@ Playtests drive the backlog the same way. *"A bank rush is more than just a rush
 of customers"* split one event into two on the v2 list — a foot-traffic surge
 that tests staffing, and a confidence-driven bank run that tests the liquidity
 floor. Full decision log, including the calls that went the other way, in
-`ROADMAP.md`.
+`ROADMAP.md` and `ROADMAP-ARCHIVE.md`.
 
 ---
 

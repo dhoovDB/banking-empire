@@ -226,7 +226,7 @@ File tables gained `config/layout.js` and the new engine exports
 `resolveEraTransition`, `loanApplicationChanceFor`). Two key design
 decisions added: single-writer state (all day mutations via
 `tickSimulation`/`applyCommand`) and lint-enforced layer boundaries.
-The full refactor rationale lives in ROADMAP.md's 2026-07-03 decision-log
+The full refactor rationale lives in ROADMAP-ARCHIVE.md's 2026-07-03 decision-log
 entries.
 
 ### 2026-05-25 — Adopted the portfolio ROADMAP standard
