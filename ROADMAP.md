@@ -15,13 +15,15 @@ lesson rather than decorating it. v1 is the full 20-quarter playable arc (see
 Definition of done below); v2 and beyond deepen the financial model and extend
 the eras.
 
-## Current status (2026-10-10)
+## Current status (2026-11-02)
 
 - **Phase:** v1 shipped 2026-08-02 and is live on GitHub Pages; v2 (MEDIUM
-  TERM) not started.
+  TERM) not started. The 2026-11-02 portfolio audit fixed documentation drift
+  and added backlog items.
 - **Next:** GitHub Actions auto-deploy, the top MEDIUM TERM item. Owner picks
   when to resume.
-- **Open decisions:** whether to trim the MEDIUM TERM backlog when v2 starts.
+- **Open decisions:** whether to trim the MEDIUM TERM backlog when v2 starts;
+  which license to add.
 - **Blockers:** none.
 
 ---
@@ -35,7 +37,9 @@ the eras.
 
 ---
 
-## Definition of done — v1
+## Definition of done
+
+*Scope: v1.*
 
 **Banking Empire v1 SHIPPED 2026-08-02.**
 - [x] A player can run a full 20-quarter playthrough start to finish in one sitting without hitting a crash
@@ -66,12 +70,26 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
 ## MEDIUM TERM — v2 quality
 *Do these after v1 ships. Improves depth and replayability.*
 
+### Deploy automation
+
+- [ ] **GitHub Actions auto-deploy on push to main** — *promoted to the top of
+      MEDIUM TERM on 2026-08-02.* The gh-pages branch updates only when someone
+      runs `npm run deploy` locally (added 2026-05-08). The 2026-08-02 capture
+      pass found the live site 10 weeks behind `main` — two and a half months of
+      shipped work invisible to anyone clicking the "Play Now" badge, and nobody
+      noticed because nothing surfaces the drift. The earlier reasoning here
+      ("the manual script is fine until playthrough churn slows down") had it
+      backwards: churn is exactly when a manual step gets skipped. Replace with
+      a workflow at `.github/workflows/deploy.yml` that builds and deploys on
+      every push to `main`. Until it exists, `npm run deploy` is a required step
+      in any session that changes player-visible behaviour.
+
 ### UI polish
 
 - [ ] **UI credibility pass (from the 2026-07-02 critical review)** — the four
       items deliberately split out of the simplification refactor, in payoff
       order: (1) ~~high-DPI canvas rendering via `devicePixelRatio`~~ **done
-      2026-07-19** (see Completed), (2) responsive scaling — canvas `max-width` +
+      2026-07-19** (see Completed in `ROADMAP-ARCHIVE.md`), (2) responsive scaling — canvas `max-width` +
       SetupScreen `auto-fit` grid; the app breaks below ~1280px, (3) spacing
       and font scales in `ui/theme.js`, sweeping the ad-hoc inline values
       across the three screens, (4) ReportScreen quarter-over-quarter deltas
@@ -82,7 +100,7 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
       responsive calculations), and `engineering-team/playwright-pro` to
       verify — scripted screenshots at 1280×720 / high-DPI / narrow widths,
       which also produce the stills for the SHORT TERM §6 README credibility
-      visuals.
+      visuals (§6 is archived in `ROADMAP-ARCHIVE.md`).
 
 - [ ] **Role clarity for chibis — legend panel in HUD (working direction)** —
       desks have nameplates ("LOANS") but the chibis themselves don't read
@@ -122,6 +140,38 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
       back. (The current four are clean — verified viewport-only, and carrying
       no EXIF beyond JFIF quantization tables.)
 
+- [ ] **Route the remaining randomness through `randomFloat`** (portfolio
+      audit, 2026-11-02). What: `randomInt` in `engine/simulation.js` (and
+      `pickRandom`, which calls it) and the coin particles in
+      `renderer/particles.js` call `Math.random` directly. Why: seed-based
+      replays need one source of randomness. `randomInt` sets deposit and loan
+      amounts, so it breaks replay determinism; the particles are cosmetic and
+      lower risk. Done when: `Math.random` appears only inside `randomFloat`.
+
+- [ ] **Read the quarter total from config** (portfolio audit, 2026-11-02).
+      What: `ui/SetupScreen.jsx:68` hard-codes the game length as
+      `Q{absQ}/20`. Why: game length is a game rule, and game rules live in
+      `config/`. Done when: a constant in `config/progression.js` sets the
+      quarter total and the setup header reads it.
+
+- [ ] **Align the two Vite versions** (portfolio audit, 2026-11-02). What: the
+      app builds with Vite 5, while Vitest 4 installs its own Vite 8 under
+      `node_modules/vitest/node_modules/vite`. Why: tests run on a different
+      Vite major than the shipped build, and Vite 8 raises the Node floor for
+      `npm test` to 20.19+. Done when: `package-lock.json` resolves one Vite
+      major, and the Node floor in README.md and CLAUDE.md matches it.
+
+- [ ] **Add a LICENSE file** (portfolio audit, 2026-11-02). What: the repo has
+      no license. Why: a public repo without one grants no reuse rights by
+      default. Done when: the owner picks a license, `LICENSE` is committed,
+      and README.md names it.
+
+- [ ] **Add a `description` to package.json** (portfolio audit, 2026-11-02).
+      What: `package.json` has no `description` field. Why: the manifest is
+      the file every tool reads, and today it says nothing about what the
+      project is. Done when: `package.json` carries a one-sentence description
+      that matches the README pitch.
+
 *The entries below happen in the claude-skills repo, not here. They are a*
 *reminder only — Banking Empire benefits from them but doesn't host them.*
 
@@ -141,25 +191,11 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
       Trigger: any unit test task in this repo. Lives in
       github.com/dhoovDB/claude-skills.
 
-### Deploy automation
-
-- [ ] **GitHub Actions auto-deploy on push to main** — *promoted to the top of
-      MEDIUM TERM on 2026-08-02.* The gh-pages branch updates only when someone
-      runs `npm run deploy` locally (added 2026-05-08). The 2026-08-02 capture
-      pass found the live site 10 weeks behind `main` — two and a half months of
-      shipped work invisible to anyone clicking the "Play Now" badge, and nobody
-      noticed because nothing surfaces the drift. The earlier reasoning here
-      ("the manual script is fine until playthrough churn slows down") had it
-      backwards: churn is exactly when a manual step gets skipped. Replace with
-      a workflow at `.github/workflows/deploy.yml` that builds and deploys on
-      every push to `main`. Until it exists, `npm run deploy` is a required step
-      in any session that changes player-visible behaviour.
-
 ### Gameplay loop improvements
 
 - [ ] **TELLER_SLOTS spacing aligned to the narrower counter** — the
       counter now uses 0.42-tile spacing (`drawTellerCounter`, 2026-05-15)
-      while `TELLER_SLOTS` in `BankingEmpire.jsx` is still 0.55-tile spacing.
+      while `TELLER_SLOTS` in `config/layout.js` is still 0.55-tile spacing.
       At 2–4 tellers the rightmost customer sits inside the counter; at 5
       tellers it drifts 0.02 tiles past the right edge; at 6 tellers, 0.15
       tiles past. Era 1 ships 2 tellers so this is latent until era 2+
@@ -218,7 +254,7 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
 - [ ] **Multi-desk loan throughput (officer count scales capacity)** — v1 took
       option (b): `STAFF_DEFINITIONS.loanOfficers.max` is now `1`, so the player
       can't pay for officers the single-desk engine model can't use (see
-      Completed 2026-06-03 and the decision-log entry). This entry is the
+      Completed 2026-06-03 in `ROADMAP-ARCHIVE.md` and the decision-log entry). This entry is the
       remaining **v2** path — option (a): scale loan desks with officer count
       (second desk at 2, third at 3) so additional officers add real throughput,
       and draw each hired officer's chibi (today the renderer only draws
@@ -241,7 +277,9 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
 
 - [ ] **Win / loss conditions — full suite** — v1 ships with negative equity
       and NPL receivership. v2 adds:
-      - [ ] Reputation < 20 for two quarters triggers depositor flight
+      - [x] Reputation < 20 for two quarters triggers depositor flight
+            (2026-04-26). Implemented; no test yet. The consecutive-quarter
+            check landed 2026-05-01.
       - [ ] CAR below regulatory minimum ignored for one quarter triggers seizure
       - [ ] Multiple endings based on playstyle (community pillar, growth machine, steady hand)
 
@@ -277,6 +315,14 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
       Bundle with it the one-line `// reason:` on `plural: "Security"`, which
       is identical to its `label` and reads like a copy-paste slip a future
       reader will "fix" to "Securities".
+
+- [ ] **Test the depositor-flight loss condition** (portfolio audit,
+      2026-11-02). What: `engine/financials.test.js` covers insolvency,
+      liquidity and NPL in `checkLossConditions`; the reputation condition in
+      `config/progression.js` has no test. Why: it is a live game-over path,
+      and a regression would fail silently. Done when: tests show it fires
+      after two consecutive quarters below 20, and stays quiet after one
+      quarter or a non-consecutive breach.
 
 - [x] **Thorough unit test coverage** — the 2026-07-03 simplification pass
       closed the bulk of this: `tickSimulation` day-level tests (event firing,
@@ -528,4 +574,4 @@ a test instead of shipping silently.
 
 ---
 
-*Last updated: 2026-10-10 (v1 history archived to ROADMAP-ARCHIVE.md; Current status added)*
+*Last updated: 2026-11-02 (portfolio audit: spine fixes, backlog items)*
