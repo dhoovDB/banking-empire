@@ -46,7 +46,16 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173 in your browser. Node 18+ required.
+Then open http://localhost:5173 in your browser.
+
+Node 18+ runs the game (`npm run dev`, `npm run build`). `npm test` and
+`npm run lint` need Node 20.19+ (or 22.13+ on the 22 line, or 24+).
+
+```bash
+npm test         # run the Vitest suite
+npm run lint     # check code quality and the layer-boundary rules
+npm run deploy   # build and publish dist/ to GitHub Pages
+```
 
 ---
 
@@ -204,16 +213,25 @@ wired.
 
 ---
 
-## Built with
+## Tech stack
 
-- React 18
-- HTML5 Canvas (no game engine library — the renderer is ~400 lines of
-  hand-written isometric drawing code)
-- Vite
-- Vitest — 105 tests across the financial model, the simulation loop, event
-  config, and staffing rules
-- ESLint with `no-restricted-imports` encoding the layer boundaries above, so a
-  change that collapses them fails the build instead of shipping
+| Area | Choice |
+|---|---|
+| Language | JavaScript (ES modules) |
+| Runtime/platform | Browser, no backend |
+| Framework | React 18, with a hand-written HTML5 Canvas isometric renderer (no game engine) |
+| Build | Vite 5 |
+| Styling | Inline styles with tokens in `ui/theme.js` |
+| Hosting/deploy | GitHub Pages via `gh-pages` (`npm run deploy`) |
+| Testing/evals | Vitest 4 |
+| Quality | ESLint 10 with `no-restricted-imports` layer rules |
+| Package manager | npm |
+| CI | none |
+
+The renderer is about 900 lines of hand-written isometric drawing code. The
+Vitest suite holds 105 tests across the financial model, the simulation loop,
+event config, and staffing rules. The ESLint rules encode the layer boundaries
+above, so a change that collapses them fails `npm run lint`.
 
 ---
 
@@ -225,7 +243,7 @@ Full roadmap in `ROADMAP.md`. Highlights:
 - Tiered staffing model for era 3+ (regional hubs replace individual tellers)
 - Infrastructure assets replacing physical branch upgrades at scale
 - KPI history charts so players can see trajectory, not just current state
-- Seed-based replays — deterministic playthroughs from a fixed seed (the engine already routes all randomness through one function to make this possible)
+- Seed-based replays — deterministic playthroughs from a fixed seed (the engine routes most simulation randomness through `randomFloat` to make this possible, with one helper still to migrate)
 
 ---
 
