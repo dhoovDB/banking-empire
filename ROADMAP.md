@@ -278,8 +278,10 @@ are archived verbatim in `ROADMAP-ARCHIVE.md`.
 - [ ] **Win / loss conditions — full suite** — v1 ships with negative equity
       and NPL receivership. v2 adds:
       - [x] Reputation < 20 for two quarters triggers depositor flight
-            (2026-04-26). Implemented; no test yet. The consecutive-quarter
-            check landed 2026-05-01.
+            (2026-04-26). Shipped in v1 after all: in `config/progression.js`
+            and `checkLossConditions` since commit 8767714; no test yet. The
+            consecutive-quarter check followed on 2026-04-30
+            (ROADMAP-ARCHIVE.md).
       - [ ] CAR below regulatory minimum ignored for one quarter triggers seizure
       - [ ] Multiple endings based on playstyle (community pillar, growth machine, steady hand)
 

@@ -48,8 +48,8 @@ npm run dev
 
 Then open http://localhost:5173 in your browser.
 
-Node 18+ runs the game (`npm run dev`, `npm run build`). `npm test` and
-`npm run lint` need Node 20.19+ (or 22.13+ on the 22 line, or 24+).
+Node 18 or 20+ runs the game (`npm run dev`, `npm run build`). `npm test` and
+`npm run lint` need Node 20.19+ on the 20 line, 22.13+ on the 22 line, or 24+.
 
 ```bash
 npm test         # run the Vitest suite

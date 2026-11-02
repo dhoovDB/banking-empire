@@ -213,8 +213,8 @@ npm install
 npm run dev
 ```
 
-Node 18+ runs the game (`npm run dev`, `npm run build`). `npm test` and
-`npm run lint` need Node 20.19+ (or 22.13+ on the 22 line, or 24+).
+Node 18 or 20+ runs the game (`npm run dev`, `npm run build`). `npm test` and
+`npm run lint` need Node 20.19+ on the 20 line, 22.13+ on the 22 line, or 24+.
 `npm test` runs the Vitest suite; `npm run lint` checks code quality and the
 layer-boundary rules.
 
@@ -226,8 +226,9 @@ layer-boundary rules.
 
 ### 2026-11-02 — Portfolio audit fixes
 
-Running locally now states the split Node floor: Node 18+ for dev and build,
-Node 20.19+ (or 22.13+, or 24+) for `npm test` and `npm run lint`. The
+Running locally now states the split Node floor: Node 18 or 20+ for dev and
+build, and 20.19+ on the 20 line, 22.13+ on the 22 line, or 24+ for `npm test`
+and `npm run lint`. The
 separation-of-concerns table gained a `ui/` row, and its renderer row now covers
 `renderer/`. The `ui/` table gained `theme.js` and the remaining `SimScreen.jsx`
 props. The `engine/` table gained `calculateOneTimeCosts`,
