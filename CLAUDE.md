@@ -33,7 +33,8 @@ from all four layers because it owns all React state.
 |---|---|
 | `config/` | Game rules as data. Rebalancing means editing config, never the engine. |
 | `engine/` | Pure functions. No React. No side effects. |
-| `renderer/canvas.js` | Receives state and draws. No calculations. |
+| `renderer/` | Receives state and draws. No calculations. |
+| `ui/` | React components. Receive props and render; no state. |
 | `BankingEmpire.jsx` | Only smart component. Owns state, passes callbacks down. |
 
 **Default to consistency across similar elements.** When two visual or logical elements play the
@@ -84,8 +85,8 @@ Nothing in `config/` imports from anywhere else in the project.
 
 | File | Key exports |
 |---|---|
-| `financials.js` | `calculateNIM`, `calculateCAR`, `calculateQuarterlyPL`, `isLiquidityBreached`, `checkLossConditions` |
-| `simulation.js` | `createDaySimState`, `tickSimulation`, `evaluateCharacter`, `applyCommand`, `interactionCommandFor`, `resolveEvent`, `resolveEraTransition`, `loanApplicationChanceFor` |
+| `financials.js` | `calculateNIM`, `calculateCAR`, `calculateQuarterlyPL`, `calculateOneTimeCosts`, `calculateRecurringSalaries`, `isLiquidityBreached`, `checkLossConditions` |
+| `simulation.js` | `createDaySimState`, `tickSimulation`, `evaluateCharacter`, `applyCommand`, `interactionCommandFor`, `resolveEvent`, `calculateEraProgressDelta`, `resolveEraTransition`, `loanApplicationChanceFor`, `createStaffMember` |
 
 ### `renderer/` — Canvas drawing only
 
@@ -101,8 +102,9 @@ All components receive props and render. None own state.
 | File | Props |
 |---|---|
 | `SetupScreen.jsx` | `fin, staff, fac, policy, committed, onStaffChange, onFacChange, onPolicyChange, onStartSim` |
-| `SimScreen.jsx` | `canvasRef, activeEvent, simLog, fin, staff, dayProgress` |
+| `SimScreen.jsx` | `canvasRef, activeEvent, simLog, fin, staff, dayProgress, greets, day, onCanvasMove, onCanvasLeave, onCanvasClick` |
 | `ReportScreen.jsx` | `report, fin, onNextQuarter, onRestart` |
+| `theme.js` | Not a component. Shared design tokens and styles: `C` (palette), `ERA_NAMES`, `panel`, `btnSm`, `kpiColor` |
 
 ### `BankingEmpire.jsx` — The one smart component
 
@@ -160,6 +162,8 @@ performance. React state is only updated when the quarter ends.
 
 **All randomness flows through `randomFloat()` in `simulation.js`.**
 Do not add `Math.random()` calls elsewhere — this keeps replays possible.
+The known exceptions (`randomInt` in `simulation.js`, and `renderer/particles.js`)
+are logged in ROADMAP.md as a backlog item.
 
 **One writer for character and day state.**
 Every mutation during the day happens inside `tickSimulation` or through
@@ -209,15 +213,28 @@ npm install
 npm run dev
 ```
 
-Requires Node 18+. `npm test` runs the Vitest suite; `npm run lint` checks
-code quality and the layer-boundary rules.
+Node 18+ runs the game (`npm run dev`, `npm run build`). `npm test` and
+`npm run lint` need Node 20.19+ (or 22.13+ on the 22 line, or 24+).
+`npm test` runs the Vitest suite; `npm run lint` checks code quality and the
+layer-boundary rules.
 
 ---
 
 ## Decision log
 
-*Project and architectural decisions are logged in `ROADMAP.md` (its Decision log
-and Key design decisions sections). This log tracks changes to this CLAUDE.md only.*
+*Project and architectural decisions are logged in `ROADMAP.md`. This log tracks changes to this CLAUDE.md only.*
+
+### 2026-11-02 — Portfolio audit fixes
+
+Running locally now states the split Node floor: Node 18+ for dev and build,
+Node 20.19+ (or 22.13+, or 24+) for `npm test` and `npm run lint`. The
+separation-of-concerns table gained a `ui/` row, and its renderer row now covers
+`renderer/`. The `ui/` table gained `theme.js` and the remaining `SimScreen.jsx`
+props. The `engine/` table gained `calculateOneTimeCosts`,
+`calculateRecurringSalaries`, `calculateEraProgressDelta` and
+`createStaffMember`. The randomness rule now names its known exceptions. The
+decision-log pointer uses the template wording, since ROADMAP.md has no Key
+design decisions section.
 
 ### 2026-07-03 — Updated for the simplification pass
 
